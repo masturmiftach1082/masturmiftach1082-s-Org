@@ -1,0 +1,891 @@
+import {
+  SuratMasuk,
+  SuratKeluar,
+  SuratKeputusan,
+  ArsipDigital,
+  MadrasahSettings,
+  KlasifikasiSurat,
+  UserProfile,
+  ActivityLog,
+  Disposisi,
+} from '../types';
+import {
+  initialMadrasahSettings,
+  initialKlasifikasiSurat,
+  initialUsers,
+  initialSuratMasuk,
+  initialSuratKeluar,
+  initialSuratKeputusan,
+  initialArsipDigital,
+  initialActivityLogs,
+} from '../data/initialData';
+import { supabase } from './supabaseClient';
+
+const STORAGE_KEYS = {
+  SETTINGS: 'sipas_settings',
+  KLASIFIKASI: 'sipas_klasifikasi',
+  USERS: 'sipas_users',
+  ACTIVE_USER: 'sipas_active_user',
+  SURAT_MASUK: 'sipas_surat_masuk',
+  SURAT_KELUAR: 'sipas_surat_keluar',
+  SURAT_KEPUTUSAN: 'sipas_surat_keputusan',
+  ARSIP: 'sipas_arsip',
+  ACTIVITY_LOGS: 'sipas_activity_logs',
+  COUNTER_MASUK: 'sipas_counter_masuk_',
+  COUNTER_KELUAR: 'sipas_counter_keluar_',
+  COUNTER_SK: 'sipas_counter_sk_',
+};
+
+const SIPAS_DATA_VERSION_KEY = 'sipas_data_version';
+const CURRENT_CLEAN_VERSION = 'v2_clean_supabase_emdjxbjhrlqsficqyors';
+
+class StorageService {
+  constructor() {
+    this.ensureCleanProductionData();
+  }
+
+  // Wipes all former dummy records from browser cache when upgrading to live Supabase connection
+  private ensureCleanProductionData(): void {
+    try {
+      const ver = localStorage.getItem(SIPAS_DATA_VERSION_KEY);
+      if (ver !== CURRENT_CLEAN_VERSION) {
+        localStorage.removeItem(STORAGE_KEYS.SURAT_MASUK);
+        localStorage.removeItem(STORAGE_KEYS.SURAT_KELUAR);
+        localStorage.removeItem(STORAGE_KEYS.SURAT_KEPUTUSAN);
+        localStorage.removeItem(STORAGE_KEYS.ARSIP);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_MASUK}2025`);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_MASUK}2026`);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_KELUAR}2025`);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_KELUAR}2026`);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_SK}2025`);
+        localStorage.removeItem(`${STORAGE_KEYS.COUNTER_SK}2026`);
+
+        // Force update settings to new Supabase credentials and Operator Madrasah defaults
+        const currentSettings = this.get<MadrasahSettings | null>(STORAGE_KEYS.SETTINGS, null);
+        if (currentSettings) {
+          currentSettings.supabaseConfig = initialMadrasahSettings.supabaseConfig;
+          currentSettings.operatorMadrasah = currentSettings.operatorMadrasah || initialMadrasahSettings.operatorMadrasah;
+          currentSettings.nipOperatorMadrasah = currentSettings.nipOperatorMadrasah || initialMadrasahSettings.nipOperatorMadrasah;
+          currentSettings.formatPenomoranSK = currentSettings.formatPenomoranSK || initialMadrasahSettings.formatPenomoranSK;
+          this.set(STORAGE_KEYS.SETTINGS, currentSettings);
+        } else {
+          this.set(STORAGE_KEYS.SETTINGS, initialMadrasahSettings);
+        }
+
+        this.set(STORAGE_KEYS.ACTIVITY_LOGS, initialActivityLogs);
+        localStorage.setItem(SIPAS_DATA_VERSION_KEY, CURRENT_CLEAN_VERSION);
+      }
+    } catch (e) {
+      console.warn('Storage migration notice:', e);
+    }
+  }
+
+  private get<T>(key: string, defaultValue: T): T {
+    try {
+      const item = localStorage.getItem(key);
+      if (!item) return defaultValue;
+      return JSON.parse(item) as T;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  private set<T>(key: string, value: T): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+  }
+
+  // --- SETTINGS ---
+  getSettings(): MadrasahSettings {
+    const saved = this.get<MadrasahSettings>(STORAGE_KEYS.SETTINGS, initialMadrasahSettings);
+    return {
+      ...initialMadrasahSettings,
+      ...saved,
+      operatorMadrasah: saved.operatorMadrasah || initialMadrasahSettings.operatorMadrasah,
+      nipOperatorMadrasah: saved.nipOperatorMadrasah || initialMadrasahSettings.nipOperatorMadrasah,
+      formatPenomoranSK: saved.formatPenomoranSK || initialMadrasahSettings.formatPenomoranSK || 'XXX Tahun YYYY',
+      supabaseConfig: {
+        ...initialMadrasahSettings.supabaseConfig,
+        ...(saved.supabaseConfig || {}),
+        url: saved.supabaseConfig?.url || initialMadrasahSettings.supabaseConfig.url,
+        anonKey: saved.supabaseConfig?.anonKey || initialMadrasahSettings.supabaseConfig.anonKey,
+        isConnected: true,
+      },
+    };
+  }
+
+  saveSettings(settings: MadrasahSettings, user?: UserProfile): void {
+    this.set(STORAGE_KEYS.SETTINGS, settings);
+    if (user) {
+      this.logActivity(user, 'Perubahan Pengaturan', 'Pengaturan', undefined, 'Memperbarui identitas madrasah atau konfigurasi sistem.');
+    }
+
+    // Sync to Supabase if connected
+    if (supabase) {
+      supabase
+        .from('pengaturan_madrasah')
+        .upsert({ id: 'default_setting', data: settings, updated_at: new Date().toISOString() })
+        .then(({ error }) => {
+          if (error) console.info('Supabase settings sync notice:', error.message);
+        });
+    }
+  }
+
+  // --- KLASIFIKASI SURAT ---
+  getKlasifikasi(): KlasifikasiSurat[] {
+    return this.get<KlasifikasiSurat[]>(STORAGE_KEYS.KLASIFIKASI, initialKlasifikasiSurat);
+  }
+
+  saveKlasifikasi(list: KlasifikasiSurat[]): void {
+    this.set(STORAGE_KEYS.KLASIFIKASI, list);
+  }
+
+  // --- USERS & AUTH ---
+  getUsers(): UserProfile[] {
+    return this.get<UserProfile[]>(STORAGE_KEYS.USERS, initialUsers);
+  }
+
+  saveUsers(users: UserProfile[]): void {
+    this.set(STORAGE_KEYS.USERS, users);
+  }
+
+  getActiveUser(): UserProfile {
+    const saved = this.get<UserProfile | null>(STORAGE_KEYS.ACTIVE_USER, null);
+    if (saved) return saved;
+    return initialUsers[0];
+  }
+
+  setActiveUser(user: UserProfile): void {
+    this.set(STORAGE_KEYS.ACTIVE_USER, user);
+    this.logActivity(user, 'Login / Ganti Profil', 'Auth', user.id, `Masuk sebagai ${user.name} (${user.jabatan})`);
+  }
+
+  // --- ACTIVITY LOGS ---
+  getActivityLogs(): ActivityLog[] {
+    return this.get<ActivityLog[]>(STORAGE_KEYS.ACTIVITY_LOGS, initialActivityLogs);
+  }
+
+  logActivity(
+    user: UserProfile,
+    action: string,
+    entityType: ActivityLog['entityType'],
+    entityId?: string,
+    details: string = ''
+  ): void {
+    const logs = this.getActivityLogs();
+    const newLog: ActivityLog = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      userId: user.id,
+      userName: user.name,
+      action,
+      entityType,
+      entityId,
+      details,
+      timestamp: new Date().toISOString(),
+    };
+    logs.unshift(newLog);
+    if (logs.length > 200) logs.pop();
+    this.set(STORAGE_KEYS.ACTIVITY_LOGS, logs);
+
+    // Sync activity log to Supabase
+    if (supabase) {
+      supabase.from('activity_logs').insert({
+        id: newLog.id,
+        user_id: newLog.userId,
+        user_name: newLog.userName,
+        action: newLog.action,
+        entity_type: newLog.entityType,
+        entity_id: newLog.entityId,
+        details: newLog.details,
+        timestamp: newLog.timestamp,
+      }).then(({ error }) => {
+        if (error) console.info('Supabase log sync notice:', error.message);
+      });
+    }
+  }
+
+  // --- SEQUENCE COUNTER ENGINE ---
+  getNextAgendaSuratMasuk(year: number): string {
+    const counterKey = `${STORAGE_KEYS.COUNTER_MASUK}${year}`;
+    const all = this.getSuratMasuk();
+    const existingInYear = all.filter((s) => s.tahunAgenda === year);
+    
+    let maxExisting = 0;
+    existingInYear.forEach((s) => {
+      const num = parseInt(s.nomorAgenda, 10);
+      if (!isNaN(num) && num > maxExisting) maxExisting = num;
+    });
+
+    const storedCounter = this.get<number>(counterKey, maxExisting);
+    const nextVal = Math.max(maxExisting, storedCounter) + 1;
+    return String(nextVal).padStart(3, '0');
+  }
+
+  commitAgendaSuratMasuk(year: number, agendaNumberStr: string): void {
+    const counterKey = `${STORAGE_KEYS.COUNTER_MASUK}${year}`;
+    const num = parseInt(agendaNumberStr, 10);
+    const current = this.get<number>(counterKey, 0);
+    if (num > current) {
+      this.set(counterKey, num);
+    }
+  }
+
+  getNextSuratKeluarInfo(year: number, monthStr: string, kodeKlasifikasi: string): { nomorUrut: number; nomorLengkap: string } {
+    const settings = this.getSettings();
+    const counterKey = `${STORAGE_KEYS.COUNTER_KELUAR}${year}`;
+    const all = this.getSuratKeluar();
+    const existingInYear = all.filter((s) => s.tahunSurat === year);
+
+    let maxExisting = 0;
+    existingInYear.forEach((s) => {
+      if (s.nomorUrut > maxExisting) maxExisting = s.nomorUrut;
+    });
+
+    const storedCounter = this.get<number>(counterKey, maxExisting);
+    const nextVal = Math.max(maxExisting, storedCounter) + 1;
+    const formattedUrut = String(nextVal).padStart(3, '0');
+    const kodeMadrasah = settings.kodeMadrasah || 'Mis.11.23.14.14';
+    const monthFormatted = String(monthStr).padStart(2, '0');
+
+    // Format: 0xx/Mis.11.23.14.14/PP.00/BB/TTTT
+    const nomorLengkap = `${formattedUrut}/${kodeMadrasah}/${kodeKlasifikasi}/${monthFormatted}/${year}`;
+    return {
+      nomorUrut: nextVal,
+      nomorLengkap,
+    };
+  }
+
+  commitSuratKeluarNumber(year: number, nomorUrut: number): void {
+    const counterKey = `${STORAGE_KEYS.COUNTER_KELUAR}${year}`;
+    const current = this.get<number>(counterKey, 0);
+    if (nomorUrut > current) {
+      this.set(counterKey, nomorUrut);
+    }
+  }
+
+  // Next SK Number
+  getNextSKInfo(year: number, monthStr: string): { nomorUrut: number; nomorSK: string } {
+    const settings = this.getSettings();
+    const counterKey = `${STORAGE_KEYS.COUNTER_SK}${year}`;
+    const all = this.getSuratKeputusan();
+    const existingInYear = all.filter((s) => s.tahun === year);
+
+    let maxExisting = 0;
+    existingInYear.forEach((s) => {
+      if (s.nomorUrut > maxExisting) maxExisting = s.nomorUrut;
+    });
+
+    const storedCounter = this.get<number>(counterKey, maxExisting);
+    const nextVal = Math.max(maxExisting, storedCounter) + 1;
+    const formattedUrut = String(nextVal).padStart(3, '0');
+    const template = settings.formatPenomoranSK || 'XXX Tahun YYYY';
+    const nomorSK = template
+      .replace(/XXX/g, formattedUrut)
+      .replace(/YYYY/g, String(year));
+
+    return {
+      nomorUrut: nextVal,
+      nomorSK,
+    };
+  }
+
+  commitSKNumber(year: number, nomorUrut: number): void {
+    const counterKey = `${STORAGE_KEYS.COUNTER_SK}${year}`;
+    const current = this.get<number>(counterKey, 0);
+    if (nomorUrut > current) {
+      this.set(counterKey, nomorUrut);
+    }
+  }
+
+  // --- CRUD: SURAT MASUK ---
+  getSuratMasuk(): SuratMasuk[] {
+    return this.get<SuratMasuk[]>(STORAGE_KEYS.SURAT_MASUK, initialSuratMasuk);
+  }
+
+  getSuratMasukById(id: string): SuratMasuk | undefined {
+    return this.getSuratMasuk().find((s) => s.id === id);
+  }
+
+  addSuratMasuk(item: Omit<SuratMasuk, 'id' | 'createdAt' | 'updatedAt' | 'nomorAgenda'>, user: UserProfile): SuratMasuk {
+    const all = this.getSuratMasuk();
+    const agenda = this.getNextAgendaSuratMasuk(item.tahunAgenda);
+
+    const newItem: SuratMasuk = {
+      ...item,
+      id: `sm-${item.tahunAgenda}-${agenda}`,
+      nomorAgenda: agenda,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user.name,
+    };
+
+    all.unshift(newItem);
+    this.set(STORAGE_KEYS.SURAT_MASUK, all);
+    this.commitAgendaSuratMasuk(item.tahunAgenda, agenda);
+
+    this.logActivity(
+      user,
+      'Registrasi Surat Masuk',
+      'Surat Masuk',
+      newItem.id,
+      `Nomor Agenda #${agenda}: "${newItem.perihal}" dari ${newItem.pengirim}`
+    );
+
+    // Sync to Supabase
+    if (supabase) {
+      supabase.from('surat_masuk').insert({
+        id: newItem.id,
+        nomor_agenda: newItem.nomorAgenda,
+        tahun_agenda: newItem.tahunAgenda,
+        nomor_surat_pengirim: newItem.nomorSuratPengirim,
+        tanggal_surat: newItem.tanggalSurat,
+        tanggal_diterima: newItem.tanggalDiterima,
+        pengirim: newItem.pengirim,
+        perihal: newItem.perihal,
+        ringkasan: newItem.ringkasan,
+        kategori: newItem.kategori,
+        sifat: newItem.sifat,
+        tujuan_internal: newItem.tujuanInternal,
+        status: newItem.status,
+        catatan: newItem.catatan,
+        file_doc: newItem.fileDoc,
+        disposisi: newItem.disposisi,
+        created_at: newItem.createdAt,
+        updated_at: newItem.updatedAt,
+        created_by: newItem.createdBy,
+      }).then(({ error }) => {
+        if (error) console.info('Supabase insert notice:', error.message);
+      });
+    }
+
+    return newItem;
+  }
+
+  updateSuratMasuk(id: string, updates: Partial<SuratMasuk>, user: UserProfile): SuratMasuk {
+    const all = this.getSuratMasuk();
+    const idx = all.findIndex((s) => s.id === id);
+    if (idx === -1) throw new Error('Surat Masuk tidak ditemukan');
+
+    const existing = all[idx];
+    const updated: SuratMasuk = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      nomorAgenda: existing.nomorAgenda,
+      tahunAgenda: existing.tahunAgenda,
+      updatedAt: new Date().toISOString(),
+    };
+
+    all[idx] = updated;
+    this.set(STORAGE_KEYS.SURAT_MASUK, all);
+
+    this.logActivity(
+      user,
+      'Pembaruan Surat Masuk',
+      'Surat Masuk',
+      updated.id,
+      `Memperbarui Agenda #${updated.nomorAgenda}: "${updated.perihal}"`
+    );
+
+    // Sync to Supabase
+    if (supabase) {
+      supabase.from('surat_masuk').update({
+        nomor_surat_pengirim: updated.nomorSuratPengirim,
+        tanggal_surat: updated.tanggalSurat,
+        tanggal_diterima: updated.tanggalDiterima,
+        pengirim: updated.pengirim,
+        perihal: updated.perihal,
+        ringkasan: updated.ringkasan,
+        kategori: updated.kategori,
+        sifat: updated.sifat,
+        tujuan_internal: updated.tujuanInternal,
+        status: updated.status,
+        catatan: updated.catatan,
+        file_doc: updated.fileDoc,
+        disposisi: updated.disposisi,
+        updated_at: updated.updatedAt,
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase update notice:', error.message);
+      });
+    }
+
+    return updated;
+  }
+
+  deleteSuratMasuk(id: string, user: UserProfile): void {
+    const all = this.getSuratMasuk();
+    const existing = all.find((s) => s.id === id);
+    if (!existing) return;
+
+    const filtered = all.filter((s) => s.id !== id);
+    this.set(STORAGE_KEYS.SURAT_MASUK, filtered);
+
+    this.logActivity(
+      user,
+      'Penghapusan Surat Masuk',
+      'Surat Masuk',
+      id,
+      `Menghapus Agenda #${existing.nomorAgenda} (${existing.perihal}). Nomor agenda tidak digunakan kembali.`
+    );
+
+    if (supabase) {
+      supabase.from('surat_masuk').delete().eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase delete notice:', error.message);
+      });
+    }
+  }
+
+  saveDisposisi(suratMasukId: string, disposisiData: Omit<Disposisi, 'id' | 'suratMasukId'>, user: UserProfile): SuratMasuk {
+    const all = this.getSuratMasuk();
+    const idx = all.findIndex((s) => s.id === suratMasukId);
+    if (idx === -1) throw new Error('Surat Masuk tidak ditemukan');
+
+    const disp: Disposisi = {
+      id: `disp-${Date.now()}`,
+      suratMasukId,
+      ...disposisiData,
+      diberikanOleh: user.name,
+    };
+
+    all[idx].disposisi = disp;
+    all[idx].status = 'Didisposisikan';
+    all[idx].updatedAt = new Date().toISOString();
+
+    this.set(STORAGE_KEYS.SURAT_MASUK, all);
+
+    this.logActivity(
+      user,
+      'Pemberian Disposisi',
+      'Surat Masuk',
+      suratMasukId,
+      `Disposisi Agenda #${all[idx].nomorAgenda} kepada ${disp.tujuanDisposisi.join(', ')}: "${disp.catatanKepala}"`
+    );
+
+    if (supabase) {
+      supabase.from('surat_masuk').update({
+        disposisi: disp,
+        status: 'Didisposisikan',
+        updated_at: all[idx].updatedAt,
+      }).eq('id', suratMasukId).then(({ error }) => {
+        if (error) console.info('Supabase disposisi notice:', error.message);
+      });
+    }
+
+    return all[idx];
+  }
+
+  // --- CRUD: SURAT KELUAR ---
+  getSuratKeluar(): SuratKeluar[] {
+    return this.get<SuratKeluar[]>(STORAGE_KEYS.SURAT_KELUAR, initialSuratKeluar);
+  }
+
+  getSuratKeluarById(id: string): SuratKeluar | undefined {
+    return this.getSuratKeluar().find((s) => s.id === id);
+  }
+
+  addSuratKeluar(
+    item: Omit<SuratKeluar, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSuratLengkap'>,
+    user: UserProfile
+  ): SuratKeluar {
+    const all = this.getSuratKeluar();
+    const dateObj = new Date(item.tanggalSurat || new Date().toISOString().split('T')[0]);
+    const year = dateObj.getFullYear() || item.tahunSurat || 2026;
+    const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+
+    const nextInfo = this.getNextSuratKeluarInfo(year, monthStr, item.kodeKlasifikasi);
+
+    const newItem: SuratKeluar = {
+      ...item,
+      id: `sk-${year}-${String(nextInfo.nomorUrut).padStart(3, '0')}`,
+      nomorUrut: nextInfo.nomorUrut,
+      nomorSuratLengkap: nextInfo.nomorLengkap,
+      tahunSurat: year,
+      bulanSurat: monthStr,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user.name,
+    };
+
+    all.unshift(newItem);
+    this.set(STORAGE_KEYS.SURAT_KELUAR, all);
+    this.commitSuratKeluarNumber(year, nextInfo.nomorUrut);
+
+    this.logActivity(
+      user,
+      'Penerbitan Surat Keluar',
+      'Surat Keluar',
+      newItem.id,
+      `Nomor Resmi ${newItem.nomorSuratLengkap} tujuan "${newItem.tujuanSurat}" (${newItem.perihal})`
+    );
+
+    // Sync to Supabase
+    if (supabase) {
+      supabase.from('surat_keluar').insert({
+        id: newItem.id,
+        nomor_urut: newItem.nomorUrut,
+        nomor_surat_lengkap: newItem.nomorSuratLengkap,
+        tahun_surat: newItem.tahunSurat,
+        bulan_surat: newItem.bulanSurat,
+        kode_klasifikasi: newItem.kodeKlasifikasi,
+        tanggal_surat: newItem.tanggalSurat,
+        tujuan_surat: newItem.tujuanSurat,
+        nama_penerima: newItem.namaPenerima,
+        jabatan_penerima: newItem.jabatanPenerima,
+        alamat_penerima: newItem.alamatPenerima,
+        perihal: newItem.perihal,
+        ringkasan: newItem.ringkasan,
+        kategori: newItem.kategori,
+        sifat: newItem.sifat,
+        status: newItem.status,
+        catatan: newItem.catatan,
+        file_doc: newItem.fileDoc,
+        created_at: newItem.createdAt,
+        updated_at: newItem.updatedAt,
+        created_by: newItem.createdBy,
+      }).then(({ error }) => {
+        if (error) console.info('Supabase surat keluar insert notice:', error.message);
+      });
+    }
+
+    return newItem;
+  }
+
+  updateSuratKeluar(id: string, updates: Partial<SuratKeluar>, user: UserProfile): SuratKeluar {
+    const all = this.getSuratKeluar();
+    const idx = all.findIndex((s) => s.id === id);
+    if (idx === -1) throw new Error('Surat Keluar tidak ditemukan');
+
+    const existing = all[idx];
+    const updated: SuratKeluar = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      nomorUrut: existing.nomorUrut,
+      nomorSuratLengkap: existing.nomorSuratLengkap,
+      tahunSurat: existing.tahunSurat,
+      updatedAt: new Date().toISOString(),
+    };
+
+    all[idx] = updated;
+    this.set(STORAGE_KEYS.SURAT_KELUAR, all);
+
+    this.logActivity(
+      user,
+      'Pembaruan Surat Keluar',
+      'Surat Keluar',
+      updated.id,
+      `Memperbarui detail surat ${updated.nomorSuratLengkap}`
+    );
+
+    if (supabase) {
+      supabase.from('surat_keluar').update({
+        tanggal_surat: updated.tanggalSurat,
+        tujuan_surat: updated.tujuanSurat,
+        nama_penerima: updated.namaPenerima,
+        jabatan_penerima: updated.jabatanPenerima,
+        alamat_penerima: updated.alamatPenerima,
+        perihal: updated.perihal,
+        ringkasan: updated.ringkasan,
+        kategori: updated.kategori,
+        sifat: updated.sifat,
+        status: updated.status,
+        catatan: updated.catatan,
+        file_doc: updated.fileDoc,
+        updated_at: updated.updatedAt,
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase update notice:', error.message);
+      });
+    }
+
+    return updated;
+  }
+
+  deleteSuratKeluar(id: string, user: UserProfile): void {
+    const all = this.getSuratKeluar();
+    const existing = all.find((s) => s.id === id);
+    if (!existing) return;
+
+    const filtered = all.filter((s) => s.id !== id);
+    this.set(STORAGE_KEYS.SURAT_KELUAR, filtered);
+
+    this.logActivity(
+      user,
+      'Penghapusan Surat Keluar',
+      'Surat Keluar',
+      id,
+      `Menghapus surat ${existing.nomorSuratLengkap}. Nomor urut #${existing.nomorUrut} tidak digunakan kembali.`
+    );
+
+    if (supabase) {
+      supabase.from('surat_keluar').delete().eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase delete notice:', error.message);
+      });
+    }
+  }
+
+  // --- CRUD: SURAT KEPUTUSAN (SK) ---
+  getSuratKeputusan(): SuratKeputusan[] {
+    return this.get<SuratKeputusan[]>(STORAGE_KEYS.SURAT_KEPUTUSAN, initialSuratKeputusan);
+  }
+
+  addSuratKeputusan(
+    item: Omit<SuratKeputusan, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSK'>,
+    user: UserProfile
+  ): SuratKeputusan {
+    const all = this.getSuratKeputusan();
+    const dateObj = new Date(item.tanggalSK || new Date().toISOString().split('T')[0]);
+    const year = dateObj.getFullYear() || item.tahun || 2026;
+    const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+
+    const nextInfo = this.getNextSKInfo(year, monthStr);
+
+    const newItem: SuratKeputusan = {
+      ...item,
+      id: `skep-${year}-${String(nextInfo.nomorUrut).padStart(3, '0')}`,
+      nomorUrut: nextInfo.nomorUrut,
+      nomorSK: nextInfo.nomorSK,
+      tahun: year,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user.name,
+    };
+
+    all.unshift(newItem);
+    this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, all);
+    this.commitSKNumber(year, nextInfo.nomorUrut);
+
+    this.logActivity(
+      user,
+      'Penetapan Surat Keputusan',
+      'Surat Keputusan',
+      newItem.id,
+      `SK Nomor ${newItem.nomorSK}: "${newItem.judul}"`
+    );
+
+    if (supabase) {
+      supabase.from('surat_keputusan').insert({
+        id: newItem.id,
+        nomor_sk: newItem.nomorSK,
+        nomor_urut: newItem.nomorUrut,
+        tahun: newItem.tahun,
+        judul: newItem.judul,
+        tentang: newItem.tentang,
+        tanggal_sk: newItem.tanggalSK,
+        tahun_pelajaran: newItem.tahunPelajaran,
+        penandatangan: newItem.penandatangan,
+        jabatan_penandatangan: newItem.jabatanPenandatangan,
+        status: newItem.status,
+        ringkasan: newItem.ringkasan,
+        file_doc: newItem.fileDoc,
+        created_at: newItem.createdAt,
+        updated_at: newItem.updatedAt,
+        created_by: newItem.createdBy,
+      }).then(({ error }) => {
+        if (error) console.info('Supabase SK insert notice:', error.message);
+      });
+    }
+
+    return newItem;
+  }
+
+  updateSuratKeputusan(id: string, updates: Partial<SuratKeputusan>, user: UserProfile): SuratKeputusan {
+    const all = this.getSuratKeputusan();
+    const idx = all.findIndex((s) => s.id === id);
+    if (idx === -1) throw new Error('SK tidak ditemukan');
+
+    const existing = all[idx];
+    const updated: SuratKeputusan = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      nomorSK: existing.nomorSK,
+      nomorUrut: existing.nomorUrut,
+      updatedAt: new Date().toISOString(),
+    };
+
+    all[idx] = updated;
+    this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, all);
+
+    this.logActivity(
+      user,
+      'Pembaruan SK',
+      'Surat Keputusan',
+      updated.id,
+      `Memperbarui ${updated.nomorSK}: "${updated.judul}"`
+    );
+
+    if (supabase) {
+      supabase.from('surat_keputusan').update({
+        judul: updated.judul,
+        tentang: updated.tentang,
+        tanggal_sk: updated.tanggalSK,
+        tahun_pelajaran: updated.tahunPelajaran,
+        penandatangan: updated.penandatangan,
+        jabatan_penandatangan: updated.jabatanPenandatangan,
+        status: updated.status,
+        ringkasan: updated.ringkasan,
+        file_doc: updated.fileDoc,
+        updated_at: updated.updatedAt,
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase SK update notice:', error.message);
+      });
+    }
+
+    return updated;
+  }
+
+  deleteSuratKeputusan(id: string, user: UserProfile): void {
+    const all = this.getSuratKeputusan();
+    const existing = all.find((s) => s.id === id);
+    if (!existing) return;
+
+    const filtered = all.filter((s) => s.id !== id);
+    this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, filtered);
+
+    this.logActivity(
+      user,
+      'Penghapusan SK',
+      'Surat Keputusan',
+      id,
+      `Menghapus ${existing.nomorSK}`
+    );
+
+    if (supabase) {
+      supabase.from('surat_keputusan').delete().eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase SK delete notice:', error.message);
+      });
+    }
+  }
+
+  // --- CRUD: ARSIP DIGITAL ---
+  getArsipDigital(): ArsipDigital[] {
+    return this.get<ArsipDigital[]>(STORAGE_KEYS.ARSIP, initialArsipDigital);
+  }
+
+  addArsipDigital(item: Omit<ArsipDigital, 'id' | 'createdAt' | 'updatedAt'>, user: UserProfile): ArsipDigital {
+    const all = this.getArsipDigital();
+    const newItem: ArsipDigital = {
+      ...item,
+      id: `arsip-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user.name,
+    };
+
+    all.unshift(newItem);
+    this.set(STORAGE_KEYS.ARSIP, all);
+
+    this.logActivity(
+      user,
+      'Pengarsipan Dokumen',
+      'Arsip Digital',
+      newItem.id,
+      `Arsip "${newItem.judulArsip}" [${newItem.kategori}]`
+    );
+
+    if (supabase) {
+      supabase.from('arsip_digital').insert({
+        id: newItem.id,
+        kode_arsip: newItem.kodeArsip,
+        judul_arsip: newItem.judulArsip,
+        kategori: newItem.kategori,
+        tahun: newItem.tahun,
+        nomor_dokumen_terkait: newItem.nomorDokumenTerait,
+        deskripsi: newItem.deskripsi,
+        tags: newItem.tags,
+        file_doc: newItem.fileDoc,
+        lokasi_fisik: newItem.lokasiFisik,
+        created_at: newItem.createdAt,
+        updated_at: newItem.updatedAt,
+        created_by: newItem.createdBy,
+      }).then(({ error }) => {
+        if (error) console.info('Supabase arsip insert notice:', error.message);
+      });
+    }
+
+    return newItem;
+  }
+
+  deleteArsipDigital(id: string, user: UserProfile): void {
+    const all = this.getArsipDigital();
+    const existing = all.find((a) => a.id === id);
+    if (!existing) return;
+
+    const filtered = all.filter((a) => a.id !== id);
+    this.set(STORAGE_KEYS.ARSIP, filtered);
+
+    this.logActivity(
+      user,
+      'Penghapusan Arsip',
+      'Arsip Digital',
+      id,
+      `Menghapus arsip ${existing.judulArsip}`
+    );
+
+    if (supabase) {
+      supabase.from('arsip_digital').delete().eq('id', id).then(({ error }) => {
+        if (error) console.info('Supabase arsip delete notice:', error.message);
+      });
+    }
+  }
+
+  // --- BACKUP & RESTORE ALL DATA ---
+  exportAllDataJSON(): string {
+    const data = {
+      version: '2.0.0',
+      exportedAt: new Date().toISOString(),
+      institution: "MI Ma'arif Al Ihsan Soborejo",
+      supabaseUrl: this.getSettings().supabaseConfig.url,
+      settings: this.getSettings(),
+      klasifikasi: this.getKlasifikasi(),
+      users: this.getUsers(),
+      suratMasuk: this.getSuratMasuk(),
+      suratKeluar: this.getSuratKeluar(),
+      suratKeputusan: this.getSuratKeputusan(),
+      arsip: this.getArsipDigital(),
+      activityLogs: this.getActivityLogs(),
+    };
+    return JSON.stringify(data, null, 2);
+  }
+
+  importAllDataJSON(jsonString: string, user: UserProfile): boolean {
+    try {
+      const data = JSON.parse(jsonString);
+      if (data.settings) this.set(STORAGE_KEYS.SETTINGS, data.settings);
+      if (data.klasifikasi) this.set(STORAGE_KEYS.KLASIFIKASI, data.klasifikasi);
+      if (data.users) this.set(STORAGE_KEYS.USERS, data.users);
+      if (data.suratMasuk) this.set(STORAGE_KEYS.SURAT_MASUK, data.suratMasuk);
+      if (data.suratKeluar) this.set(STORAGE_KEYS.SURAT_KELUAR, data.suratKeluar);
+      if (data.suratKeputusan) this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, data.suratKeputusan);
+      if (data.arsip) this.set(STORAGE_KEYS.ARSIP, data.arsip);
+      if (data.activityLogs) this.set(STORAGE_KEYS.ACTIVITY_LOGS, data.activityLogs);
+
+      this.logActivity(user, 'Restore Basis Data', 'Pengaturan', undefined, 'Memulihkan basis data SIPAS dari berkas JSON.');
+      return true;
+    } catch (e) {
+      console.error('Import failed:', e);
+      return false;
+    }
+  }
+
+  resetToDefault(user: UserProfile): void {
+    localStorage.clear();
+    localStorage.setItem(SIPAS_DATA_VERSION_KEY, CURRENT_CLEAN_VERSION);
+    this.set(STORAGE_KEYS.SETTINGS, initialMadrasahSettings);
+    this.set(STORAGE_KEYS.KLASIFIKASI, initialKlasifikasiSurat);
+    this.set(STORAGE_KEYS.USERS, initialUsers);
+    this.set(STORAGE_KEYS.SURAT_MASUK, initialSuratMasuk);
+    this.set(STORAGE_KEYS.SURAT_KELUAR, initialSuratKeluar);
+    this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, initialSuratKeputusan);
+    this.set(STORAGE_KEYS.ARSIP, initialArsipDigital);
+    this.set(STORAGE_KEYS.ACTIVITY_LOGS, initialActivityLogs);
+    this.set(STORAGE_KEYS.ACTIVE_USER, initialUsers[0]);
+
+    this.logActivity(user, 'Bersihkan Data Dummy', 'Pengaturan', undefined, 'Membersihkan seluruh data dummy dan menghubungkan ke Supabase.');
+  }
+}
+
+export const storageService = new StorageService();

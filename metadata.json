@@ -1,0 +1,6 @@
+{
+  "name": "SIPAS - MI Ma'arif Al Ihsan Soborejo",
+  "description": "Sistem Informasi Pengelolaan Arsip dan Surat Terpadu MI Ma'arif Al Ihsan Soborejo untuk surat masuk, surat keluar otomatis, SK, disposisi, dan arsip digital.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
