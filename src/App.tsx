@@ -82,6 +82,9 @@ export default function App() {
   // Administrator Login Modal
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
+  // Cloud Sync State
+  const [isSyncing, setIsSyncing] = useState(false);
+
   // Refresh all state from storage
   const refreshData = useCallback(() => {
     setSettings(storageService.getSettings());
@@ -93,13 +96,52 @@ export default function App() {
     setActivityLogs(storageService.getActivityLogs());
   }, []);
 
-  // Initial sync from Supabase if connected
+  const handleManualSync = useCallback(async () => {
+    setIsSyncing(true);
+    await storageService.syncFromSupabase();
+    refreshData();
+    setTimeout(() => setIsSyncing(false), 600);
+  }, [refreshData]);
+
+  // Real-time Cloud Synchronization (Multi-Device Engine)
   useEffect(() => {
-    storageService.syncFromSupabase().then((res) => {
-      if (res.success && (res.counts.suratMasuk > 0 || res.counts.suratKeluar > 0 || res.counts.suratKeputusan > 0 || res.counts.arsip > 0)) {
+    // 1. Initial background sync
+    setIsSyncing(true);
+    storageService.syncFromSupabase().then(() => {
+      refreshData();
+      setIsSyncing(false);
+    });
+
+    // 2. Realtime listener: triggers whenever another device modifies data in Supabase
+    const unsubscribeRealtime = storageService.subscribeToRealtime(() => {
+      refreshData();
+    });
+
+    // 3. Multi-tab synchronization on the same browser
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key?.startsWith('sipas_')) {
         refreshData();
       }
-    });
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    // 4. Focus & visibility sync: when device turns on or tab is active
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        storageService.syncFromSupabase().then(() => {
+          refreshData();
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      unsubscribeRealtime();
+      window.removeEventListener('storage', handleStorageEvent);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
   }, [refreshData]);
 
   const handleOpenLoginModal = () => {
@@ -238,6 +280,8 @@ export default function App() {
           currentUser={currentUser}
           onOpenLoginModal={handleOpenLoginModal}
           onLogout={handleLogout}
+          isSyncing={isSyncing}
+          onManualSync={handleManualSync}
         />
 
         {/* Viewport Content */}

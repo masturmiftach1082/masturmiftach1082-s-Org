@@ -7,6 +7,7 @@ import {
   LogOut,
   ShieldCheck,
   Eye,
+  RefreshCw,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -16,6 +17,8 @@ interface HeaderProps {
   currentUser: UserProfile;
   onOpenLoginModal: () => void;
   onLogout: () => void;
+  isSyncing?: boolean;
+  onManualSync?: () => void;
 }
 
 const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
@@ -36,6 +39,8 @@ export default function Header({
   currentUser,
   onOpenLoginModal,
   onLogout,
+  isSyncing = false,
+  onManualSync,
 }: HeaderProps) {
   const info = TAB_TITLES[currentTab] || { title: 'SIPAS', subtitle: settings.namaMadrasah };
   const todayFormatted = formatDateIndo(new Date().toISOString().split('T')[0]);
@@ -71,6 +76,21 @@ export default function Header({
           <Calendar className="w-3.5 h-3.5 text-amber-600" />
           <span className="font-medium">{todayFormatted}</span>
         </div>
+
+        {/* Live Multi-Device Cloud Sync Indicator */}
+        <button
+          type="button"
+          onClick={onManualSync}
+          title="Sinkronisasi Cloud Supabase Multi-Perangkat Aktif. Klik untuk memuat ulang data terbaru."
+          className="hidden lg:flex items-center gap-1.5 text-xs font-semibold text-emerald-950 bg-emerald-50/90 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer shadow-2xs"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+          </span>
+          <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span className="text-[11px]">Multi-Perangkat Tersinkron</span>
+        </button>
 
         {/* Mode Indicator & Auth Action */}
         {isAdmin ? (

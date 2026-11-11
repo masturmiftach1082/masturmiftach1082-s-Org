@@ -954,7 +954,7 @@ class StorageService {
       }
 
       let countSM = 0;
-      if (remoteSM && remoteSM.length > 0) {
+      if (Array.isArray(remoteSM)) {
         const mappedSM: SuratMasuk[] = remoteSM.map((r: any) => ({
           id: r.id,
           nomorAgenda: r.nomor_agenda,
@@ -978,6 +978,12 @@ class StorageService {
         }));
         this.set(STORAGE_KEYS.SURAT_MASUK, mappedSM);
         countSM = mappedSM.length;
+
+        // Sync highest agenda counter per year
+        mappedSM.forEach((s) => {
+          const num = parseInt(s.nomorAgenda, 10);
+          if (!isNaN(num)) this.commitAgendaSuratMasuk(s.tahunAgenda, String(num));
+        });
       }
 
       // 2. Fetch surat_keluar
@@ -991,7 +997,7 @@ class StorageService {
       }
 
       let countSKel = 0;
-      if (remoteSKel && remoteSKel.length > 0) {
+      if (Array.isArray(remoteSKel)) {
         const mappedSKel: SuratKeluar[] = remoteSKel.map((r: any) => ({
           id: r.id,
           nomorUrut: r.nomor_urut,
@@ -1017,6 +1023,11 @@ class StorageService {
         }));
         this.set(STORAGE_KEYS.SURAT_KELUAR, mappedSKel);
         countSKel = mappedSKel.length;
+
+        // Sync highest surat keluar counter per year
+        mappedSKel.forEach((s) => {
+          if (s.nomorUrut) this.commitSuratKeluarNumber(s.tahunSurat, s.nomorUrut);
+        });
       }
 
       // 3. Fetch surat_keputusan
@@ -1030,7 +1041,7 @@ class StorageService {
       }
 
       let countSK = 0;
-      if (remoteSK && remoteSK.length > 0) {
+      if (Array.isArray(remoteSK)) {
         const mappedSK: SuratKeputusan[] = remoteSK.map((r: any) => ({
           id: r.id,
           nomorUrut: r.nomor_urut,
@@ -1051,6 +1062,15 @@ class StorageService {
         }));
         this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, mappedSK);
         countSK = mappedSK.length;
+
+        // Sync highest SK counter per year
+        mappedSK.forEach((s) => {
+          if (s.nomorUrut) {
+            const counterKey = `${STORAGE_KEYS.COUNTER_SK}${s.tahun}`;
+            const current = this.get<number>(counterKey, 0);
+            if (s.nomorUrut > current) this.set(counterKey, s.nomorUrut);
+          }
+        });
       }
 
       // 4. Fetch arsip_digital
@@ -1064,7 +1084,7 @@ class StorageService {
       }
 
       let countArsip = 0;
-      if (remoteArsip && remoteArsip.length > 0) {
+      if (Array.isArray(remoteArsip)) {
         const mappedArsip: ArsipDigital[] = remoteArsip.map((r: any) => ({
           id: r.id,
           kodeArsip: r.kode_arsip || r.id,
@@ -1106,6 +1126,41 @@ class StorageService {
         counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0 },
         message: e?.message || 'Gagal sinkronisasi data dari Supabase',
       };
+    }
+  }
+
+  // --- REALTIME MULTI-DEVICE SUBSCRIPTION ---
+  subscribeToRealtime(onDataChanged: () => void): () => void {
+    if (!supabase) return () => {};
+
+    try {
+      const channel = supabase
+        .channel('sipas-multi-device-sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          async (payload) => {
+            console.info('[SIPAS Multi-Device Sync] Perubahan terdeteksi dari perangkat lain:', payload.table, payload.eventType);
+            await this.syncFromSupabase();
+            onDataChanged();
+          }
+        )
+        .subscribe((status) => {
+          console.info('[SIPAS Multi-Device Sync] Status channel:', status);
+        });
+
+      return () => {
+        try {
+          if (supabase) {
+            supabase.removeChannel(channel);
+          }
+        } catch (e) {
+          console.warn('Error removing channel:', e);
+        }
+      };
+    } catch (err) {
+      console.warn('Realtime subscription not supported or errored:', err);
+      return () => {};
     }
   }
 
