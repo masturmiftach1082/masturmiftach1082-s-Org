@@ -46,8 +46,8 @@ export default function SuratMasukList({
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedSifat, setSelectedSifat] = useState<string>('ALL');
 
-  const canManage = currentUser.role === 'admin' || currentUser.role === 'operator';
-  const canDisposisi = currentUser.role === 'kepala_madrasah' || currentUser.role === 'admin';
+  const canManage = currentUser.role === 'admin';
+  const canDisposisi = currentUser.role === 'admin';
 
   // Available years from dataset
   const availableYears = useMemo(() => {
@@ -141,9 +141,9 @@ export default function SuratMasukList({
           {canManage && (
             <button
               onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg shadow-xs border border-amber-400/80 transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Tambah Surat Masuk
+              <Plus className="w-4 h-4 text-emerald-950" /> Tambah Surat Masuk
             </button>
           )}
         </div>
@@ -213,10 +213,10 @@ export default function SuratMasukList({
       </div>
 
       {/* Main Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-xl border border-slate-200 border-t-2 border-t-amber-500 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+            <thead className="bg-[#023126] border-b border-amber-500/30 text-amber-200 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4 w-20 text-center">No. Agenda</th>
                 <th className="py-3 px-4 w-32">Tgl. Diterima</th>
@@ -354,9 +354,9 @@ export default function SuratMasukList({
                     {canManage && !searchTerm && (
                       <button
                         onClick={onAddNew}
-                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors"
+                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg border border-amber-400 shadow-xs transition-colors cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Tambah Surat Pertama
+                        <Plus className="w-3.5 h-3.5 text-emerald-950" /> Tambah Surat Pertama
                       </button>
                     )}
                   </td>

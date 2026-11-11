@@ -37,7 +37,7 @@ export default function SuratKeluarDetailModal({
 }: SuratKeluarDetailModalProps) {
   if (!isOpen || !surat) return null;
 
-  const canManage = currentUser.role === 'admin' || currentUser.role === 'operator';
+  const canManage = currentUser.role === 'admin';
 
   const handlePrint = () => {
     window.print();
@@ -47,23 +47,23 @@ export default function SuratKeluarDetailModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header (No print) */}
-        <div className="no-print flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-emerald-900 text-white">
+        <div className="no-print flex items-center justify-between px-6 py-4 border-b-2 border-amber-400/60 bg-gradient-to-r from-[#023126] via-[#034436] to-[#01221b] text-white">
           <div className="flex items-center gap-3">
-            <span className="font-mono font-bold text-xs bg-emerald-800 text-emerald-100 px-3 py-1 rounded-md border border-emerald-700">
+            <span className="font-mono font-bold text-xs bg-amber-400/20 text-amber-300 px-3 py-1 rounded-md border border-amber-400/40">
               URUT #{String(surat.nomorUrut).padStart(3, '0')}
             </span>
             <div>
-              <h3 className="text-base font-semibold leading-tight line-clamp-1">
+              <h3 className="text-base font-semibold leading-tight line-clamp-1 text-white">
                 {surat.nomorSuratLengkap}
               </h3>
-              <p className="text-xs text-emerald-200 mt-0.5">
+              <p className="text-xs text-amber-200/80 mt-0.5">
                 Surat Keluar · Tujuan: {surat.tujuanSurat}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-emerald-200 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors"
+            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

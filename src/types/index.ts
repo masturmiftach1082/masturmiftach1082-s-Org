@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'operator' | 'kepala_madrasah' | 'guru';
+export type UserRole = 'admin' | 'viewer' | 'operator' | 'kepala_madrasah' | 'guru';
 
 export interface UserProfile {
   id: string;
@@ -175,6 +175,7 @@ export interface MadrasahSettings {
     serviceAccountEmail: string;
     isConnected: boolean;
   };
+  adminPassword?: string; // Password to unlock Administrator mode (default: admin123)
 }
 
 export interface ActivityLog {

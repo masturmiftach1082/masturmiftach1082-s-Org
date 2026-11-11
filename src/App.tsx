@@ -35,6 +35,7 @@ import SuratKeluarDetailModal from './components/surat-keluar/SuratKeluarDetailM
 import SuratKeputusanModal from './components/surat-keputusan/SuratKeputusanModal';
 import ArsipDigitalModal from './components/arsip/ArsipDigitalModal';
 import DocumentViewerModal from './components/common/DocumentViewerModal';
+import LoginAdminModal from './components/auth/LoginAdminModal';
 
 export default function App() {
   // Navigation & Layout
@@ -73,11 +74,13 @@ export default function App() {
   const [skToEdit, setSKToEdit] = useState<SuratKeputusan | null>(null);
   const [isArsipModalOpen, setIsArsipModalOpen] = useState(false);
 
-  // Google Drive Document Viewer Modal
   const [isDocViewerOpen, setIsDocViewerOpen] = useState(false);
   const [docToPreview, setDocToPreview] = useState<GoogleDriveMetadata | undefined>(undefined);
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewNomor, setPreviewNomor] = useState('');
+
+  // Administrator Login Modal
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Refresh all state from storage
   const refreshData = useCallback(() => {
@@ -90,9 +93,27 @@ export default function App() {
     setActivityLogs(storageService.getActivityLogs());
   }, []);
 
-  const handleSwitchUser = (user: UserProfile) => {
-    storageService.setActiveUser(user);
-    setCurrentUser(user);
+  // Initial sync from Supabase if connected
+  useEffect(() => {
+    storageService.syncFromSupabase().then((res) => {
+      if (res.success && (res.counts.suratMasuk > 0 || res.counts.suratKeluar > 0 || res.counts.suratKeputusan > 0 || res.counts.arsip > 0)) {
+        refreshData();
+      }
+    });
+  }, [refreshData]);
+
+  const handleOpenLoginModal = () => {
+    setIsLoginModalOpen(true);
+  };
+
+  const handleLogout = () => {
+    storageService.logoutToViewer();
+    setCurrentUser(storageService.getActiveUser());
+    refreshData();
+  };
+
+  const handleLoginSuccess = (adminUser: UserProfile) => {
+    setCurrentUser(adminUser);
     refreshData();
   };
 
@@ -215,8 +236,8 @@ export default function App() {
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           settings={settings}
           currentUser={currentUser}
-          allUsers={allUsers}
-          onSwitchUser={handleSwitchUser}
+          onOpenLoginModal={handleOpenLoginModal}
+          onLogout={handleLogout}
         />
 
         {/* Viewport Content */}
@@ -307,8 +328,9 @@ export default function App() {
             <PenggunaList
               users={allUsers}
               currentUser={currentUser}
-              onUsersUpdated={refreshData}
-              onSwitchUser={handleSwitchUser}
+              settings={settings}
+              onOpenLoginModal={handleOpenLoginModal}
+              onPasswordChanged={refreshData}
             />
           )}
 
@@ -431,6 +453,14 @@ export default function App() {
         fileDoc={docToPreview}
         title={previewTitle}
         nomorSurat={previewNomor}
+        settings={settings}
+      />
+
+      {/* 10. Administrator Password Login Modal */}
+      <LoginAdminModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSuccess={handleLoginSuccess}
         settings={settings}
       />
     </div>

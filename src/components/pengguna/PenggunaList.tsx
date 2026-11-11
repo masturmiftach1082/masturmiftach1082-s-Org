@@ -1,357 +1,334 @@
 import { useState } from 'react';
-import { UserProfile, UserRole } from '../../types';
+import { UserProfile, MadrasahSettings } from '../../types';
 import { storageService } from '../../services/storageService';
 import {
-  Users,
-  UserPlus,
   ShieldCheck,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
   CheckCircle2,
-  XCircle,
-  Edit,
-  UserCheck,
-  X,
-  Save,
+  AlertCircle,
+  Shield,
+  User,
+  Info,
 } from 'lucide-react';
 
 interface PenggunaListProps {
   users: UserProfile[];
   currentUser: UserProfile;
-  onUsersUpdated: () => void;
-  onSwitchUser: (user: UserProfile) => void;
+  settings: MadrasahSettings;
+  onOpenLoginModal: () => void;
+  onPasswordChanged: () => void;
 }
-
-const ROLE_LABELS: Record<UserRole, { label: string; desc: string }> = {
-  admin: {
-    label: 'Administrator IT',
-    desc: 'Akses penuh ke seluruh modul, manajemen sistem, dan pengaturan database.',
-  },
-  operator: {
-    label: 'Operator Madrasah',
-    desc: 'Pengelolaan surat masuk, penerbitan nomor surat keluar, SK, dan arsip.',
-  },
-  kepala_madrasah: {
-    label: 'Kepala Madrasah',
-    desc: 'Pemberian disposisi surat, persetujuan surat keluar & penetapan SK.',
-  },
-  guru: {
-    label: 'Guru / Tenaga Pendidik',
-    desc: 'Melihat arsip persuratan, kurikulum, dan pencarian berkas.',
-  },
-};
 
 export default function PenggunaList({
   users,
   currentUser,
-  onUsersUpdated,
-  onSwitchUser,
+  settings,
+  onOpenLoginModal,
+  onPasswordChanged,
 }: PenggunaListProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('operator');
-  const [nip, setNip] = useState('');
-  const [jabatan, setJabatan] = useState('');
-  const [isActive, setIsActive] = useState(true);
-
-  const canManage = currentUser.role === 'admin';
-
-  const handleOpenAdd = () => {
-    setEditingUser(null);
-    setName('');
-    setEmail('');
-    setRole('operator');
-    setNip('');
-    setJabatan('Operator Madrasah');
-    setIsActive(true);
-    setIsModalOpen(true);
+  const isAdmin = currentUser.role === 'admin';
+  const adminUser = users[0] || {
+    id: 'admin-1',
+    name: 'Administrator SIPAS',
+    email: 'admin@mimaarifsoborejo.sch.id',
+    role: 'admin',
+    jabatan: 'Administrator Sistem SIPAS',
+    isActive: true,
   };
 
-  const handleOpenEdit = (user: UserProfile) => {
-    setEditingUser(user);
-    setName(user.name);
-    setEmail(user.email);
-    setRole(user.role);
-    setNip(user.nip || '');
-    setJabatan(user.jabatan);
-    setIsActive(user.isActive);
-    setIsModalOpen(true);
-  };
+  // Change Password Form State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) {
-      alert('Nama dan email wajib diisi.');
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!storageService.verifyAdminPassword(currentPassword)) {
+      setErrorMsg('Kata sandi saat ini tidak sesuai.');
       return;
     }
 
-    const currentList = storageService.getUsers();
-
-    if (editingUser) {
-      const updated = currentList.map((u) =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              name: name.trim(),
-              email: email.trim(),
-              role,
-              nip: nip.trim() || undefined,
-              jabatan: jabatan.trim(),
-              isActive,
-            }
-          : u
-      );
-      storageService.saveUsers(updated);
-    } else {
-      const newUser: UserProfile = {
-        id: `user-${Date.now()}`,
-        name: name.trim(),
-        email: email.trim(),
-        role,
-        nip: nip.trim() || undefined,
-        jabatan: jabatan.trim(),
-        isActive,
-      };
-      currentList.push(newUser);
-      storageService.saveUsers(currentList);
+    if (newPassword.length < 5) {
+      setErrorMsg('Kata sandi baru minimal 5 karakter.');
+      return;
     }
 
-    onUsersUpdated();
-    setIsModalOpen(false);
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    storageService.setAdminPassword(newPassword, currentUser);
+    setSuccessMsg('Kata sandi Administrator berhasil diperbarui!');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    onPasswordChanged();
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">
-            Manajemen Pengguna & Hak Akses
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Pengaturan akun staf madrasah, hak akses role (Kepala Madrasah, Operator TU, Guru, Administrator).
+    <div className="space-y-6">
+      {/* Policy Explanation Banner */}
+      <div className="p-4 rounded-xl border border-amber-500/40 bg-gradient-to-r from-[#023126] via-[#034436] to-[#01221b] text-white flex items-start gap-3 shadow-sm">
+        <ShieldCheck className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+        <div className="text-xs space-y-1">
+          <h4 className="font-bold text-amber-200">
+            Kebijakan Hak Akses & Keamanan SIPAS
+          </h4>
+          <p className="text-emerald-100/90 leading-relaxed">
+            Sistem informasi persuratan MI Ma'arif Al Ihsan Soborejo dikonfigurasi dengan <strong className="text-amber-300">1 akun Administrator resmi</strong> yang dilindungi kata sandi. 
+            Semua pengguna di luar Administrator berada dalam <strong className="text-amber-200">Mode Hanya Lihat (Read-Only)</strong> guna menjamin keaslian agenda dan nomor surat dinas.
           </p>
         </div>
-
-        {canManage && (
-          <button
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-colors"
-          >
-            <UserPlus className="w-4 h-4" /> Tambah Pengguna Baru
-          </button>
-        )}
       </div>
 
-      {/* Role explanation cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-          <div key={r} className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
-            <span className="font-bold text-emerald-950 block">{ROLE_LABELS[r].label}</span>
-            <p className="text-[11px] text-slate-500 leading-relaxed">{ROLE_LABELS[r].desc}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Administrator Profile Card */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 border-t-2 border-t-amber-500">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+            <Shield className="w-4 h-4 text-emerald-700" />
+            <h3 className="text-sm font-bold text-slate-900">Akun Administrator Tunggal</h3>
           </div>
-        ))}
-      </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-4">Nama & Email</th>
-                <th className="py-3 px-4">Jabatan & NIP</th>
-                <th className="py-3 px-4 w-44">Peran (Role)</th>
-                <th className="py-3 px-4 w-28 text-center">Status Akun</th>
-                <th className="py-3 px-4 w-48 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.map((u) => {
-                const isCurrent = u.id === currentUser.id;
-                return (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs">
-                          {u.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                            {u.name}
-                            {isCurrent && (
-                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-medium px-1.5 py-0.2 rounded">
-                                Akun Anda
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-[11px] text-slate-400 font-mono">{u.email}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-slate-800">{u.jabatan}</p>
-                      {u.nip && <p className="text-[11px] text-slate-500 font-mono">NIP: {u.nip}</p>}
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <span className="font-semibold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 inline-block text-[11px]">
-                        {ROLE_LABELS[u.role].label}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-4 text-center">
-                      {u.isActive ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Aktif
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-                          <XCircle className="w-3.5 h-3.5" /> Non-Aktif
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!isCurrent && (
-                          <button
-                            onClick={() => onSwitchUser(u)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded transition-colors"
-                          >
-                            <UserCheck className="w-3 h-3" /> Masuk Sebagai
-                          </button>
-                        )}
-                        {canManage && (
-                          <button
-                            onClick={() => handleOpenEdit(u)}
-                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal Add / Edit */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-emerald-900 text-white">
-              <h3 className="text-base font-semibold">
-                {editingUser ? 'Ubah Akun Pengguna' : 'Tambah Pengguna Baru'}
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-emerald-200 hover:text-white rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          <div className="text-center py-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-tr from-amber-500 via-amber-300 to-amber-500 text-slate-950 font-extrabold text-xl flex items-center justify-center shadow-md border-2 border-amber-300">
+              A
             </div>
+            <h4 className="text-sm font-bold text-slate-900 mt-3">{adminUser.name}</h4>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">{adminUser.email}</p>
+            <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-400">
+              Hak Akses: Administrator Penuh
+            </span>
+          </div>
 
-            <form onSubmit={handleSave} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap *</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Contoh: H. Mastur Miftach, M.Pd.I"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+          <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Jabatan:</span>
+              <span className="font-semibold text-slate-800">{adminUser.jabatan}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Status Akun:</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Aktif
+              </span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Metode Masuk:</span>
+              <span className="font-semibold text-slate-800">Autentikasi Kata Sandi</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Status Sesi Saat Ini:</span>
+              <span className={`font-bold ${isAdmin ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {isAdmin ? 'Terautentikasi (Admin Aktif)' : 'Mode Tamu (Hanya Lihat)'}
+              </span>
+            </div>
+          </div>
+
+          {!isAdmin && (
+            <button
+              onClick={onOpenLoginModal}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer mt-2"
+            >
+              <Lock className="w-3.5 h-3.5" /> Masuk sebagai Administrator
+            </button>
+          )}
+        </div>
+
+        {/* Password Management Form or Guest Notice */}
+        <div className="lg:col-span-2 space-y-6">
+          {isAdmin ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-emerald-700" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Ganti Kata Sandi Administrator
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  Default bawaan: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-emerald-800 font-bold">admin123</code>
+                </span>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Email Pengguna *</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@mimaarifsoborejo.sch.id"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
+              {errorMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
+              {successMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Hak Akses (Role)</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Kata Sandi Saat Ini *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrent ? 'text' : 'password'}
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Masukkan kata sandi lama..."
+                      className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrent(!showCurrent)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Kata Sandi Baru *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNew ? 'text' : 'password'}
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Minimal 5 karakter..."
+                        className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNew(!showNew)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                      >
+                        {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Ulangi Kata Sandi Baru *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Ulangi kata sandi baru..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
                   >
-                    <option value="operator">Operator Madrasah</option>
-                    <option value="kepala_madrasah">Kepala Madrasah</option>
-                    <option value="admin">Administrator IT</option>
-                    <option value="guru">Guru / Tenaga Pendidik</option>
-                  </select>
+                    <Lock className="w-3.5 h-3.5" /> Perbarui Kata Sandi Administrator
+                  </button>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">NIP (Opsional)</label>
-                  <input
-                    type="text"
-                    value={nip}
-                    onChange={(e) => setNip(e.target.value)}
-                    placeholder="19780512 200501..."
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center space-y-4 border-t-2 border-t-amber-500">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+                <Lock className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Anda Sedang Menggunakan Mode Hanya Lihat
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                  Pengunjung umum dapat menelusuri surat masuk, surat keluar, ketetapan SK, berkas arsip, serta mencetak lembar agenda. 
+                  Untuk mengubah berkas atau mengelola keamanan, silakan masuk dengan kata sandi Administrator.
+                </p>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Jabatan di Madrasah</label>
-                <input
-                  type="text"
-                  value={jabatan}
-                  onChange={(e) => setJabatan(e.target.value)}
-                  placeholder="Contoh: Operator Madrasah"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="isActiveCheck"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="w-4 h-4 text-emerald-600 rounded"
-                />
-                <label htmlFor="isActiveCheck" className="text-slate-700 font-medium">
-                  Akun aktif dan diizinkan mengakses SIPAS
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 font-medium text-slate-600 bg-slate-100 rounded-lg"
+                  onClick={onOpenLoginModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                 >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1.5 px-5 py-2 font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg"
-                >
-                  <Save className="w-4 h-4" /> Simpan Pengguna
+                  <Lock className="w-4 h-4" /> Masuk Hak Administrator
                 </button>
               </div>
-            </form>
+            </div>
+          )}
+
+          {/* Role matrix explanation card */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3 text-xs">
+            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-emerald-700" /> Panduan Matriks Hak Akses
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[11px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                    <th className="py-2 px-3 font-semibold">Tindakan / Modul</th>
+                    <th className="py-2 px-3 font-semibold">Administrator (Login Password)</th>
+                    <th className="py-2 px-3 font-semibold">Mode Tamu / Publik (Hanya Lihat)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr>
+                    <td className="py-2 px-3">Lihat Surat Masuk, Keluar, SK, & Arsip</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Cari, Filter, & Pratinjau Dokumen Google Drive</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Cetak Laporan, Buku Agenda & Disposisi</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Catat & Buat Nomor Surat Masuk / Keluar / SK Baru</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan Penuh</td>
+                    <td className="py-2 px-3 text-red-600 font-semibold">✗ Hanya Lihat</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Edit & Hapus Data Dokumen Persuratan</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan Penuh</td>
+                    <td className="py-2 px-3 text-red-600 font-semibold">✗ Hanya Lihat</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Buat / Ubah Lembar Disposisi Kepala Madrasah</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan Penuh</td>
+                    <td className="py-2 px-3 text-red-600 font-semibold">✗ Hanya Lihat</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3">Ubah Pengaturan Madrasah & Koneksi Supabase</td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">✓ Diizinkan Penuh</td>
+                    <td className="py-2 px-3 text-red-600 font-semibold">✗ Hanya Lihat</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -33,7 +33,7 @@ export default function ArsipDigitalList({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedKategori, setSelectedKategori] = useState<string>('ALL');
 
-  const canManage = currentUser.role === 'admin' || currentUser.role === 'operator';
+  const canManage = currentUser.role === 'admin';
 
   const categories = useMemo(() => {
     return Array.from(new Set(arsipList.map((a) => a.kategori)));
@@ -105,7 +105,7 @@ export default function ArsipDigitalList({
           {canManage && (
             <button
               onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
             >
               <Plus className="w-4 h-4" /> Unggah Arsip Baru
             </button>
@@ -143,17 +143,17 @@ export default function ArsipDigitalList({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs border-t-2 border-t-amber-500">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+            <thead className="bg-[#023126] border-b border-amber-500/30 text-amber-200 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="py-3 px-4 w-36">Kode Arsip</th>
-                <th className="py-3 px-4">Judul Dokumen & Deskripsi</th>
-                <th className="py-3 px-4 w-40">Kategori</th>
-                <th className="py-3 px-4 w-28">Ukuran File</th>
-                <th className="py-3 px-4 w-40">Lokasi Fisik / Rak</th>
-                <th className="py-3 px-4 w-32 text-right">Aksi</th>
+                <th className="py-3 px-4 w-36 text-amber-300">Kode Arsip</th>
+                <th className="py-3 px-4 text-amber-200">Judul Dokumen & Deskripsi</th>
+                <th className="py-3 px-4 w-40 text-amber-200">Kategori</th>
+                <th className="py-3 px-4 w-28 text-amber-200">Ukuran File</th>
+                <th className="py-3 px-4 w-40 text-amber-200">Lokasi Fisik / Rak</th>
+                <th className="py-3 px-4 w-32 text-right text-amber-200">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

@@ -11,6 +11,10 @@ export const SUPABASE_ANON_KEY =
   (import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string) ||
   'sb_publishable_j01ZRuz0bWZhX0g_hpaeCQ_1mbIPdjY';
 
+export const SUPABASE_JWKS_URL =
+  (import.meta.env.VITE_SUPABASE_JWKS_URL as string) ||
+  'https://emdjxbjhrlqsficqyors.supabase.co/auth/v1/.well-known/jwks.json';
+
 let client: SupabaseClient | null = null;
 
 try {
@@ -179,10 +183,21 @@ ALTER TABLE arsip_digital ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pengaturan_madrasah ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON surat_masuk;
 CREATE POLICY "Allow public read-write for SIPAS" ON surat_masuk FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON surat_keluar;
 CREATE POLICY "Allow public read-write for SIPAS" ON surat_keluar FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON surat_keputusan;
 CREATE POLICY "Allow public read-write for SIPAS" ON surat_keputusan FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON arsip_digital;
 CREATE POLICY "Allow public read-write for SIPAS" ON arsip_digital FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON pengaturan_madrasah;
 CREATE POLICY "Allow public read-write for SIPAS" ON pengaturan_madrasah FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON activity_logs;
 CREATE POLICY "Allow public read-write for SIPAS" ON activity_logs FOR ALL USING (true) WITH CHECK (true);
 `;

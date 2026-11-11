@@ -196,16 +196,16 @@ export default function SuratMasukModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-emerald-900 text-white">
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-amber-400/60 bg-gradient-to-r from-[#023126] via-[#034436] to-[#01221b] text-white">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-800 text-emerald-200 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-amber-400/20 border border-amber-300/40 text-amber-300 flex items-center justify-center">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold leading-tight">
+              <h3 className="text-base font-semibold leading-tight text-white">
                 {isEdit ? 'Ubah Data Surat Masuk' : 'Tambah Surat Masuk Baru'}
               </h3>
-              <p className="text-xs text-emerald-200">
+              <p className="text-xs text-amber-200/80">
                 MI Ma'arif Al Ihsan Soborejo · Sistem Penomoran Agenda Terintegrasi
               </p>
             </div>
@@ -456,7 +456,7 @@ export default function SuratMasukModal({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
             >
               <Save className="w-4 h-4" />
               <span>{isEdit ? 'Simpan Perubahan' : 'Daftarkan Surat Masuk'}</span>

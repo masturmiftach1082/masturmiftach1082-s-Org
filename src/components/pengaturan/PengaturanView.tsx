@@ -21,6 +21,7 @@ import {
   Copy,
   Terminal,
   Activity,
+  Lock,
 } from 'lucide-react';
 
 interface PengaturanViewProps {
@@ -45,8 +46,10 @@ export default function PengaturanView({
   const [connectionResult, setConnectionResult] = useState<{ success: boolean; message: string } | null>(null);
   const [copiedSQL, setCopiedSQL] = useState(false);
   const [showSQLSchema, setShowSQLSchema] = useState(false);
+  const [syncingData, setSyncingData] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
-  const canEdit = currentUser.role === 'admin' || currentUser.role === 'kepala_madrasah';
+  const canEdit = currentUser.role === 'admin';
 
   const handleTestSupabase = async () => {
     setTestingConnection(true);
@@ -60,6 +63,20 @@ export default function PengaturanView({
     navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
     setCopiedSQL(true);
     setTimeout(() => setCopiedSQL(false), 2500);
+  };
+
+  const handleSyncSupabase = async () => {
+    setSyncingData(true);
+    setSyncResult(null);
+    const res = await storageService.syncFromSupabase();
+    setSyncingData(false);
+    if (res.success) {
+      setSyncResult(
+        `Sinkronisasi berhasil: ${res.counts.suratMasuk} surat masuk, ${res.counts.suratKeluar} surat keluar, ${res.counts.suratKeputusan} SK, ${res.counts.arsip} arsip.`
+      );
+    } else {
+      setSyncResult(res.message || 'Gagal sinkronisasi data dari Supabase.');
+    }
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -147,13 +164,22 @@ export default function PengaturanView({
         )}
       </div>
 
+      {!canEdit && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2.5">
+          <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+          <span>
+            <strong>Mode Hanya Lihat:</strong> Anda sedang meninjau konfigurasi madrasah dalam mode baca. Untuk menyimpan perubahan atau mengubah kredensial, silakan masuk sebagai Administrator menggunakan tombol di bilah atas.
+          </span>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
         <button
           onClick={() => setActiveTab('madrasah')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
             activeTab === 'madrasah'
-              ? 'bg-emerald-700 text-white shadow-xs'
+              ? 'bg-[#023126] text-amber-300 border border-amber-400/60 shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
@@ -164,7 +190,7 @@ export default function PengaturanView({
           onClick={() => setActiveTab('penomoran')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
             activeTab === 'penomoran'
-              ? 'bg-emerald-700 text-white shadow-xs'
+              ? 'bg-[#023126] text-amber-300 border border-amber-400/60 shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
@@ -175,7 +201,7 @@ export default function PengaturanView({
           onClick={() => setActiveTab('integrasi')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
             activeTab === 'integrasi'
-              ? 'bg-emerald-700 text-white shadow-xs'
+              ? 'bg-[#023126] text-amber-300 border border-amber-400/60 shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
@@ -186,7 +212,7 @@ export default function PengaturanView({
           onClick={() => setActiveTab('backup')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
             activeTab === 'backup'
-              ? 'bg-emerald-700 text-white shadow-xs'
+              ? 'bg-[#023126] text-amber-300 border border-amber-400/60 shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
@@ -196,7 +222,7 @@ export default function PengaturanView({
 
       {/* TAB 1: IDENTITAS MADRASAH */}
       {activeTab === 'madrasah' && (
-        <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 p-6 space-y-6 text-xs">
+        <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 p-6 space-y-6 text-xs border-t-2 border-t-amber-500">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Data Pokok Madrasah & Kepala Madrasah</h3>
@@ -205,7 +231,7 @@ export default function PengaturanView({
             {canEdit && (
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
               >
                 <Save className="w-3.5 h-3.5" /> Simpan Pengaturan
               </button>
@@ -380,6 +406,28 @@ export default function PengaturanView({
                     />
                   </div>
                 </div>
+
+                {/* Kata Sandi Administrator Section */}
+                <div className="pt-3 border-t border-slate-200 space-y-2">
+                  <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                    <p className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" /> Kata Sandi Administrator
+                    </p>
+                    <p className="text-[10px] text-amber-800">
+                      Digunakan untuk membuka izin kelola penuh persuratan. Pengunjung lain berada di Mode Hanya Lihat.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Kata Sandi Masuk Administrator</label>
+                    <input
+                      type="text"
+                      value={formData.adminPassword || 'admin123'}
+                      onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-emerald-950 font-bold bg-white"
+                      placeholder="admin123"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -397,7 +445,7 @@ export default function PengaturanView({
             {canEdit && (
               <button
                 onClick={handleSaveSettings}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" /> Simpan Format Penomoran
               </button>
@@ -568,7 +616,7 @@ export default function PengaturanView({
             {canEdit && (
               <button
                 onClick={handleSaveSettings}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" /> Simpan Konfigurasi
               </button>
@@ -631,6 +679,16 @@ export default function PengaturanView({
                   {testingConnection ? 'Menguji Koneksi...' : 'Uji Koneksi Supabase'}
                 </button>
 
+                <button
+                  type="button"
+                  onClick={handleSyncSupabase}
+                  disabled={syncingData}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-md transition-colors cursor-pointer"
+                >
+                  <RefreshCcw className={`w-3.5 h-3.5 ${syncingData ? 'animate-spin' : ''}`} />
+                  {syncingData ? 'Sinkronisasi...' : 'Tarik Data Supabase'}
+                </button>
+
                 <a
                   href="https://supabase.com/dashboard/project/emdjxbjhrlqsficqyors"
                   target="_blank"
@@ -656,6 +714,14 @@ export default function PengaturanView({
                     <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                   )}
                   <span>{connectionResult.message}</span>
+                </div>
+              )}
+
+              {/* Sync result notice */}
+              {syncResult && (
+                <div className="p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{syncResult}</span>
                 </div>
               )}
             </div>

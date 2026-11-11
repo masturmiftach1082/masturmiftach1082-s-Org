@@ -142,7 +142,7 @@ export default function LaporanView({
             </button>
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Printer className="w-4 h-4" /> Cetak Lembar Laporan
             </button>
@@ -155,14 +155,14 @@ export default function LaporanView({
             onClick={() => setSelectedType('agenda_masuk')}
             className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors cursor-pointer ${
               selectedType === 'agenda_masuk'
-                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                ? 'bg-gradient-to-r from-[#023126] to-[#034436] border-amber-400 text-amber-200 font-semibold shadow-xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <BookOpen className="w-4 h-4 text-emerald-700 shrink-0" />
+            <BookOpen className={`w-4 h-4 shrink-0 ${selectedType === 'agenda_masuk' ? 'text-amber-300' : 'text-emerald-700'}`} />
             <div>
               <p className="text-xs">Buku Agenda Surat Masuk</p>
-              <span className="text-[10px] text-slate-400 font-normal">
+              <span className={`text-[10px] font-normal ${selectedType === 'agenda_masuk' ? 'text-amber-300/80' : 'text-slate-400'}`}>
                 {filteredMasuk.length} Berkas
               </span>
             </div>
@@ -172,14 +172,14 @@ export default function LaporanView({
             onClick={() => setSelectedType('agenda_keluar')}
             className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors cursor-pointer ${
               selectedType === 'agenda_keluar'
-                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                ? 'bg-gradient-to-r from-[#023126] to-[#034436] border-amber-400 text-amber-200 font-semibold shadow-xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <Send className="w-4 h-4 text-emerald-700 shrink-0" />
+            <Send className={`w-4 h-4 shrink-0 ${selectedType === 'agenda_keluar' ? 'text-amber-300' : 'text-emerald-700'}`} />
             <div>
               <p className="text-xs">Buku Agenda Surat Keluar</p>
-              <span className="text-[10px] text-slate-400 font-normal">
+              <span className={`text-[10px] font-normal ${selectedType === 'agenda_keluar' ? 'text-amber-300/80' : 'text-slate-400'}`}>
                 {filteredKeluar.length} Surat
               </span>
             </div>
@@ -189,14 +189,14 @@ export default function LaporanView({
             onClick={() => setSelectedType('daftar_sk')}
             className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors cursor-pointer ${
               selectedType === 'daftar_sk'
-                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                ? 'bg-gradient-to-r from-[#023126] to-[#034436] border-amber-400 text-amber-200 font-semibold shadow-xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <Award className="w-4 h-4 text-emerald-700 shrink-0" />
+            <Award className={`w-4 h-4 shrink-0 ${selectedType === 'daftar_sk' ? 'text-amber-300' : 'text-emerald-700'}`} />
             <div>
               <p className="text-xs">Daftar Surat Keputusan</p>
-              <span className="text-[10px] text-slate-400 font-normal">{filteredSK.length} SK</span>
+              <span className={`text-[10px] font-normal ${selectedType === 'daftar_sk' ? 'text-amber-300/80' : 'text-slate-400'}`}>{filteredSK.length} SK</span>
             </div>
           </button>
 
@@ -204,14 +204,14 @@ export default function LaporanView({
             onClick={() => setSelectedType('rekap_tahunan')}
             className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors cursor-pointer ${
               selectedType === 'rekap_tahunan'
-                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                ? 'bg-gradient-to-r from-[#023126] to-[#034436] border-amber-400 text-amber-200 font-semibold shadow-xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <BarChart3 className="w-4 h-4 text-emerald-700 shrink-0" />
+            <BarChart3 className={`w-4 h-4 shrink-0 ${selectedType === 'rekap_tahunan' ? 'text-amber-300' : 'text-emerald-700'}`} />
             <div>
               <p className="text-xs">Rekapitulasi Administrasi</p>
-              <span className="text-[10px] text-slate-400 font-normal">Statistik Tahunan</span>
+              <span className={`text-[10px] font-normal ${selectedType === 'rekap_tahunan' ? 'text-amber-300/80' : 'text-slate-400'}`}>Statistik Tahunan</span>
             </div>
           </button>
         </div>

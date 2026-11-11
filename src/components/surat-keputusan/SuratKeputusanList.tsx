@@ -36,7 +36,7 @@ export default function SuratKeputusanList({
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
-  const canManage = currentUser.role === 'admin' || currentUser.role === 'operator' || currentUser.role === 'kepala_madrasah';
+  const canManage = currentUser.role === 'admin';
 
   const availableYears = useMemo(() => {
     const years = Array.from(new Set(skList.map((s) => s.tahun)));
@@ -111,7 +111,7 @@ export default function SuratKeputusanList({
           {canManage && (
             <button
               onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
             >
               <Plus className="w-4 h-4" /> Tetapkan SK Baru
             </button>
@@ -163,18 +163,18 @@ export default function SuratKeputusanList({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs border-t-2 border-t-amber-500">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+            <thead className="bg-[#023126] border-b border-amber-500/30 text-amber-200 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="py-3 px-4 w-16 text-center">Urut</th>
-                <th className="py-3 px-4 w-52">Nomor SK & Tanggal</th>
-                <th className="py-3 px-4">Judul & Tentang</th>
-                <th className="py-3 px-4 w-32">Tahun Pelajaran</th>
-                <th className="py-3 px-4 w-28">Status</th>
-                <th className="py-3 px-4 w-20 text-center">Berkas</th>
-                <th className="py-3 px-4 w-28 text-right">Aksi</th>
+                <th className="py-3 px-4 w-16 text-center text-amber-300">Urut</th>
+                <th className="py-3 px-4 w-52 text-amber-200">Nomor SK & Tanggal</th>
+                <th className="py-3 px-4 text-amber-200">Judul & Tentang</th>
+                <th className="py-3 px-4 w-32 text-amber-200">Tahun Pelajaran</th>
+                <th className="py-3 px-4 w-28 text-amber-200">Status</th>
+                <th className="py-3 px-4 w-20 text-center text-amber-200">Berkas</th>
+                <th className="py-3 px-4 w-28 text-right text-amber-200">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

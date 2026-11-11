@@ -13,6 +13,8 @@ import {
   initialMadrasahSettings,
   initialKlasifikasiSurat,
   initialUsers,
+  singleAdministrator,
+  guestViewerProfile,
   initialSuratMasuk,
   initialSuratKeluar,
   initialSuratKeputusan,
@@ -37,14 +39,14 @@ const STORAGE_KEYS = {
 };
 
 const SIPAS_DATA_VERSION_KEY = 'sipas_data_version';
-const CURRENT_CLEAN_VERSION = 'v2_clean_supabase_emdjxbjhrlqsficqyors';
+const CURRENT_CLEAN_VERSION = 'v3_admin_password_read_only';
 
 class StorageService {
   constructor() {
     this.ensureCleanProductionData();
   }
 
-  // Wipes all former dummy records from browser cache when upgrading to live Supabase connection
+  // Wipes all former dummy records & sets up 1 Administrator and Mode Hanya Lihat default
   private ensureCleanProductionData(): void {
     try {
       const ver = localStorage.getItem(SIPAS_DATA_VERSION_KEY);
@@ -60,13 +62,20 @@ class StorageService {
         localStorage.removeItem(`${STORAGE_KEYS.COUNTER_SK}2025`);
         localStorage.removeItem(`${STORAGE_KEYS.COUNTER_SK}2026`);
 
-        // Force update settings to new Supabase credentials and Operator Madrasah defaults
+        // Set users list strictly to only 1 Administrator
+        this.set(STORAGE_KEYS.USERS, [singleAdministrator]);
+        
+        // Default to guest/viewer (Mode Hanya Lihat)
+        this.set(STORAGE_KEYS.ACTIVE_USER, guestViewerProfile);
+
+        // Force update settings to new Supabase credentials and Administrator password defaults
         const currentSettings = this.get<MadrasahSettings | null>(STORAGE_KEYS.SETTINGS, null);
         if (currentSettings) {
           currentSettings.supabaseConfig = initialMadrasahSettings.supabaseConfig;
           currentSettings.operatorMadrasah = currentSettings.operatorMadrasah || initialMadrasahSettings.operatorMadrasah;
           currentSettings.nipOperatorMadrasah = currentSettings.nipOperatorMadrasah || initialMadrasahSettings.nipOperatorMadrasah;
           currentSettings.formatPenomoranSK = currentSettings.formatPenomoranSK || initialMadrasahSettings.formatPenomoranSK;
+          currentSettings.adminPassword = currentSettings.adminPassword || initialMadrasahSettings.adminPassword || 'admin123';
           this.set(STORAGE_KEYS.SETTINGS, currentSettings);
         } else {
           this.set(STORAGE_KEYS.SETTINGS, initialMadrasahSettings);
@@ -107,6 +116,7 @@ class StorageService {
       operatorMadrasah: saved.operatorMadrasah || initialMadrasahSettings.operatorMadrasah,
       nipOperatorMadrasah: saved.nipOperatorMadrasah || initialMadrasahSettings.nipOperatorMadrasah,
       formatPenomoranSK: saved.formatPenomoranSK || initialMadrasahSettings.formatPenomoranSK || 'XXX Tahun YYYY',
+      adminPassword: saved.adminPassword || initialMadrasahSettings.adminPassword || 'admin123',
       supabaseConfig: {
         ...initialMadrasahSettings.supabaseConfig,
         ...(saved.supabaseConfig || {}),
@@ -143,9 +153,9 @@ class StorageService {
     this.set(STORAGE_KEYS.KLASIFIKASI, list);
   }
 
-  // --- USERS & AUTH ---
+  // --- USERS & AUTHENTICATION (1 ADMINISTRATOR + READ-ONLY VIEWERS) ---
   getUsers(): UserProfile[] {
-    return this.get<UserProfile[]>(STORAGE_KEYS.USERS, initialUsers);
+    return this.get<UserProfile[]>(STORAGE_KEYS.USERS, [singleAdministrator]);
   }
 
   saveUsers(users: UserProfile[]): void {
@@ -155,12 +165,59 @@ class StorageService {
   getActiveUser(): UserProfile {
     const saved = this.get<UserProfile | null>(STORAGE_KEYS.ACTIVE_USER, null);
     if (saved) return saved;
-    return initialUsers[0];
+    return guestViewerProfile;
   }
 
   setActiveUser(user: UserProfile): void {
     this.set(STORAGE_KEYS.ACTIVE_USER, user);
-    this.logActivity(user, 'Login / Ganti Profil', 'Auth', user.id, `Masuk sebagai ${user.name} (${user.jabatan})`);
+  }
+
+  isAdmin(): boolean {
+    const current = this.getActiveUser();
+    return current.role === 'admin';
+  }
+
+  verifyAdminPassword(password: string): boolean {
+    const settings = this.getSettings();
+    const correct = settings.adminPassword || 'admin123';
+    return password.trim() === correct.trim();
+  }
+
+  loginAdmin(password: string): { success: boolean; message?: string } {
+    if (this.verifyAdminPassword(password)) {
+      this.setActiveUser(singleAdministrator);
+      this.logActivity(
+        singleAdministrator,
+        'Masuk Hak Administrator',
+        'Auth',
+        singleAdministrator.id,
+        'Administrator berhasil masuk menggunakan kata sandi. Mode kelola aktif.'
+      );
+      return { success: true };
+    }
+    return {
+      success: false,
+      message: 'Kata sandi Administrator salah. Silakan coba kembali.',
+    };
+  }
+
+  logoutToViewer(): void {
+    const admin = singleAdministrator;
+    this.setActiveUser(guestViewerProfile);
+    this.logActivity(
+      admin,
+      'Keluar dari Administrator',
+      'Auth',
+      undefined,
+      'Kembali ke Mode Hanya Lihat (Guest / Tamu).'
+    );
+  }
+
+  setAdminPassword(newPassword: string, user: UserProfile): void {
+    const settings = this.getSettings();
+    settings.adminPassword = newPassword;
+    this.saveSettings(settings, user);
+    this.logActivity(user, 'Ganti Kata Sandi', 'Auth', user.id, 'Kata sandi Administrator berhasil diperbarui.');
   }
 
   // --- ACTIVITY LOGS ---
@@ -868,6 +925,187 @@ class StorageService {
     } catch (e) {
       console.error('Import failed:', e);
       return false;
+    }
+  }
+
+  // --- REALTIME SYNC FROM SUPABASE ---
+  async syncFromSupabase(): Promise<{
+    success: boolean;
+    counts: { suratMasuk: number; suratKeluar: number; suratKeputusan: number; arsip: number };
+    message?: string;
+  }> {
+    if (!supabase) {
+      return {
+        success: false,
+        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0 },
+        message: 'Klien Supabase tidak aktif',
+      };
+    }
+
+    try {
+      // 1. Fetch surat_masuk
+      const { data: remoteSM, error: smErr } = await supabase
+        .from('surat_masuk')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (smErr && smErr.code !== '42P01') {
+        console.warn('Sync surat_masuk notice:', smErr.message);
+      }
+
+      let countSM = 0;
+      if (remoteSM && remoteSM.length > 0) {
+        const mappedSM: SuratMasuk[] = remoteSM.map((r: any) => ({
+          id: r.id,
+          nomorAgenda: r.nomor_agenda,
+          tahunAgenda: r.tahun_agenda,
+          nomorSuratPengirim: r.nomor_surat_pengirim,
+          tanggalSurat: r.tanggal_surat,
+          tanggalDiterima: r.tanggal_diterima,
+          pengirim: r.pengirim,
+          perihal: r.perihal,
+          ringkasan: r.ringkasan || '',
+          kategori: r.kategori,
+          sifat: r.sifat,
+          tujuanInternal: r.tujuan_internal || '',
+          status: r.status,
+          catatan: r.catatan || '',
+          fileDoc: r.file_doc,
+          disposisi: r.disposisi,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          createdBy: r.created_by,
+        }));
+        this.set(STORAGE_KEYS.SURAT_MASUK, mappedSM);
+        countSM = mappedSM.length;
+      }
+
+      // 2. Fetch surat_keluar
+      const { data: remoteSKel, error: skelErr } = await supabase
+        .from('surat_keluar')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (skelErr && skelErr.code !== '42P01') {
+        console.warn('Sync surat_keluar notice:', skelErr.message);
+      }
+
+      let countSKel = 0;
+      if (remoteSKel && remoteSKel.length > 0) {
+        const mappedSKel: SuratKeluar[] = remoteSKel.map((r: any) => ({
+          id: r.id,
+          nomorUrut: r.nomor_urut,
+          nomorSuratLengkap: r.nomor_surat_lengkap,
+          tahunSurat: r.tahun_surat,
+          bulanSurat: r.bulan_surat,
+          kodeKlasifikasi: r.kode_klasifikasi,
+          tanggalSurat: r.tanggal_surat,
+          tujuanSurat: r.tujuan_surat,
+          namaPenerima: r.nama_penerima || '',
+          jabatanPenerima: r.jabatan_penerima || '',
+          alamatPenerima: r.alamat_penerima || '',
+          perihal: r.perihal,
+          ringkasan: r.ringkasan || r.ringkasan_isi || '',
+          kategori: r.kategori || '',
+          sifat: r.sifat || r.sifat_surat || 'Biasa',
+          status: r.status || 'Terkirim',
+          catatan: r.catatan || '',
+          fileDoc: r.file_doc,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          createdBy: r.created_by,
+        }));
+        this.set(STORAGE_KEYS.SURAT_KELUAR, mappedSKel);
+        countSKel = mappedSKel.length;
+      }
+
+      // 3. Fetch surat_keputusan
+      const { data: remoteSK, error: skErr } = await supabase
+        .from('surat_keputusan')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (skErr && skErr.code !== '42P01') {
+        console.warn('Sync surat_keputusan notice:', skErr.message);
+      }
+
+      let countSK = 0;
+      if (remoteSK && remoteSK.length > 0) {
+        const mappedSK: SuratKeputusan[] = remoteSK.map((r: any) => ({
+          id: r.id,
+          nomorUrut: r.nomor_urut,
+          nomorSK: r.nomor_sk,
+          tahun: r.tahun,
+          judul: r.judul || r.judul_sk || '',
+          tentang: r.tentang || '',
+          tanggalSK: r.tanggal_sk || r.tanggal_penetapan || '',
+          tahunPelajaran: r.tahun_pelajaran || '',
+          penandatangan: r.penandatangan || r.pejabat_penetap || '',
+          jabatanPenandatangan: r.jabatan_penandatangan || 'Kepala Madrasah',
+          status: r.status || r.status_sk || 'Berlaku',
+          ringkasan: r.ringkasan || r.keterangan || '',
+          fileDoc: r.file_doc,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          createdBy: r.created_by,
+        }));
+        this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, mappedSK);
+        countSK = mappedSK.length;
+      }
+
+      // 4. Fetch arsip_digital
+      const { data: remoteArsip, error: arsipErr } = await supabase
+        .from('arsip_digital')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (arsipErr && arsipErr.code !== '42P01') {
+        console.warn('Sync arsip_digital notice:', arsipErr.message);
+      }
+
+      let countArsip = 0;
+      if (remoteArsip && remoteArsip.length > 0) {
+        const mappedArsip: ArsipDigital[] = remoteArsip.map((r: any) => ({
+          id: r.id,
+          kodeArsip: r.kode_arsip || r.id,
+          judulArsip: r.judul_arsip,
+          kategori: r.kategori,
+          tahun: r.tahun,
+          nomorDokumenTerait: r.nomor_dokumen_terkait || r.nomor_dokumen || '',
+          deskripsi: r.deskripsi || r.keterangan || '',
+          tags: r.tags || [],
+          fileDoc: r.file_doc || {
+            id: 'doc-auto',
+            fileName: 'Dokumen Arsip',
+            fileType: 'application/pdf',
+            size: 0,
+            uploadDate: r.created_at || new Date().toISOString(),
+            webViewLink: '#',
+          },
+          lokasiFisik: r.lokasi_fisik || '',
+          createdAt: r.created_at,
+          updatedAt: r.updated_at || r.created_at,
+          createdBy: r.created_by,
+        }));
+        this.set(STORAGE_KEYS.ARSIP, mappedArsip);
+        countArsip = mappedArsip.length;
+      }
+
+      return {
+        success: true,
+        counts: {
+          suratMasuk: countSM,
+          suratKeluar: countSKel,
+          suratKeputusan: countSK,
+          arsip: countArsip,
+        },
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0 },
+        message: e?.message || 'Gagal sinkronisasi data dari Supabase',
+      };
     }
   }
 

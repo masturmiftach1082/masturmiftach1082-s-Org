@@ -43,6 +43,7 @@ export const initialMadrasahSettings: MadrasahSettings = {
     serviceAccountEmail: "sipas-drive-sync@mimaarif-soborejo.iam.gserviceaccount.com",
     isConnected: true,
   },
+  adminPassword: "admin123",
 };
 
 export const initialKlasifikasiSurat: KlasifikasiSurat[] = [
@@ -56,42 +57,27 @@ export const initialKlasifikasiSurat: KlasifikasiSurat[] = [
   { kode: 'OT.00', nama: 'Organisasi & Tata Laksana', deskripsi: 'Struktur organisasi, pedoman kerja, SOP madrasah' },
 ];
 
-export const initialUsers: UserProfile[] = [
-  {
-    id: 'user-1',
-    name: 'H. Mastur Miftach, M.Pd.I',
-    email: 'masturmiftach@gmail.com',
-    role: 'kepala_madrasah',
-    nip: '19780512 200501 1 003',
-    jabatan: 'Kepala Madrasah',
-    isActive: true,
-  },
-  {
-    id: 'user-2',
-    name: 'Siti Aminah, S.Pd.',
-    email: 'aminah.tu@mimaarifsoborejo.sch.id',
-    role: 'operator',
-    nip: '19850314 201101 2 018',
-    jabatan: 'Operator Madrasah / Pengadministrasi Persuratan',
-    isActive: true,
-  },
-  {
-    id: 'user-3',
-    name: 'Ahmad Fauzi, S.Kom.',
-    email: 'admin@mimaarifsoborejo.sch.id',
-    role: 'admin',
-    jabatan: 'Administrator IT SIPAS',
-    isActive: true,
-  },
-  {
-    id: 'user-4',
-    name: 'Nurul Hidayah, S.Pd.I',
-    email: 'nurul.guru@mimaarifsoborejo.sch.id',
-    role: 'guru',
-    jabatan: 'Waka Kurikulum & Guru Kelas VI',
-    isActive: true,
-  },
-];
+// Single Administrator Account for SIPAS
+export const singleAdministrator: UserProfile = {
+  id: 'admin-1',
+  name: 'Administrator SIPAS',
+  email: 'admin@mimaarifsoborejo.sch.id',
+  role: 'admin',
+  jabatan: 'Administrator Sistem SIPAS',
+  isActive: true,
+};
+
+// Default Read-Only Viewer Profile for visitors
+export const guestViewerProfile: UserProfile = {
+  id: 'viewer-guest',
+  name: 'Mode Tamu',
+  email: 'tamu@mimaarifsoborejo.sch.id',
+  role: 'viewer',
+  jabatan: 'Mode Hanya Lihat (Read-Only)',
+  isActive: true,
+};
+
+export const initialUsers: UserProfile[] = [singleAdministrator];
 
 // Clean empty tables ready for production use with Supabase
 export const initialSuratMasuk: SuratMasuk[] = [];
