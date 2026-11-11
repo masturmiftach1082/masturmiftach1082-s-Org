@@ -136,8 +136,18 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
+    // 5. Periodic polling fallback (every 5 seconds when tab is active)
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        storageService.syncFromSupabase().then(() => {
+          refreshData();
+        });
+      }
+    }, 5000);
+
     return () => {
       unsubscribeRealtime();
+      clearInterval(pollInterval);
       window.removeEventListener('storage', handleStorageEvent);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);

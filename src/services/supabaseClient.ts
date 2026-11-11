@@ -200,4 +200,27 @@ CREATE POLICY "Allow public read-write for SIPAS" ON pengaturan_madrasah FOR ALL
 
 DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON activity_logs;
 CREATE POLICY "Allow public read-write for SIPAS" ON activity_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Aktifkan Supabase Realtime untuk sinkronisasi instan multi-perangkat (Websocket Push)
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE surat_masuk;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE surat_keluar;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE surat_keputusan;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE arsip_digital;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE pengaturan_madrasah;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE activity_logs;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+END $$;
 `;

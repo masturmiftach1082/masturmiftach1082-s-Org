@@ -521,6 +521,32 @@ export default function PengaturanView({
                 </span>
               </div>
             </div>
+
+            {/* Opsi Penomoran Manual Card */}
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-emerald-50 rounded-xl border border-amber-300/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h5 className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                    <Key className="w-4 h-4 text-amber-700" /> Opsi Input Nomor Surat Manual (Bebas)
+                  </h5>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    Memberikan opsi kepada operator madrasah untuk memilih antara penomoran otomatis sistem atau mengetikkan nomor secara manual pada Surat Keluar, SK, dan Surat Masuk.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.izinkanNomorManual !== false}
+                    onChange={(e) => setFormData({ ...formData, izinkanNomorManual: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-700"></div>
+                </label>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Fitur ini aktif secara bawaan untuk mempermudah pencatatan surat susulan, penomoran khusus yayasan LP Ma'arif, atau sinkronisasi dengan buku kendali fisik madrasah.
+              </p>
+            </div>
           </div>
 
           {/* Klasifikasi Surat Table */}

@@ -366,13 +366,18 @@ class StorageService {
     return this.getSuratMasuk().find((s) => s.id === id);
   }
 
-  addSuratMasuk(item: Omit<SuratMasuk, 'id' | 'createdAt' | 'updatedAt' | 'nomorAgenda'>, user: UserProfile): SuratMasuk {
+  addSuratMasuk(
+    item: Omit<SuratMasuk, 'id' | 'createdAt' | 'updatedAt' | 'nomorAgenda'> & {
+      customNomorAgenda?: string;
+    },
+    user: UserProfile
+  ): SuratMasuk {
     const all = this.getSuratMasuk();
-    const agenda = this.getNextAgendaSuratMasuk(item.tahunAgenda);
+    const agenda = item.customNomorAgenda?.trim() || this.getNextAgendaSuratMasuk(item.tahunAgenda);
 
     const newItem: SuratMasuk = {
       ...item,
-      id: `sm-${item.tahunAgenda}-${agenda}`,
+      id: `sm-${item.tahunAgenda}-${agenda.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       nomorAgenda: agenda,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -395,26 +400,26 @@ class StorageService {
     if (supabase) {
       supabase.from('surat_masuk').insert({
         id: newItem.id,
-        nomor_agenda: newItem.nomorAgenda,
-        tahun_agenda: newItem.tahunAgenda,
-        nomor_surat_pengirim: newItem.nomorSuratPengirim,
-        tanggal_surat: newItem.tanggalSurat,
-        tanggal_diterima: newItem.tanggalDiterima,
-        pengirim: newItem.pengirim,
-        perihal: newItem.perihal,
-        ringkasan: newItem.ringkasan,
-        kategori: newItem.kategori,
-        sifat: newItem.sifat,
-        tujuan_internal: newItem.tujuanInternal,
-        status: newItem.status,
-        catatan: newItem.catatan,
-        file_doc: newItem.fileDoc,
-        disposisi: newItem.disposisi,
-        created_at: newItem.createdAt,
-        updated_at: newItem.updatedAt,
-        created_by: newItem.createdBy,
+        nomor_agenda: newItem.nomorAgenda || '001',
+        tahun_agenda: newItem.tahunAgenda || new Date().getFullYear(),
+        nomor_surat_pengirim: newItem.nomorSuratPengirim || '-',
+        tanggal_surat: newItem.tanggalSurat || new Date().toISOString().split('T')[0],
+        tanggal_diterima: newItem.tanggalDiterima || new Date().toISOString().split('T')[0],
+        pengirim: newItem.pengirim || '-',
+        perihal: newItem.perihal || '-',
+        ringkasan: newItem.ringkasan || '',
+        kategori: newItem.kategori || 'Dinas / Resmi',
+        sifat: newItem.sifat || 'Biasa',
+        tujuan_internal: newItem.tujuanInternal || '',
+        status: newItem.status || 'Baru Diterima',
+        catatan: newItem.catatan || '',
+        file_doc: newItem.fileDoc || null,
+        disposisi: newItem.disposisi || null,
+        created_at: newItem.createdAt || new Date().toISOString(),
+        updated_at: newItem.updatedAt || new Date().toISOString(),
+        created_by: newItem.createdBy || 'Administrator',
       }).then(({ error }) => {
-        if (error) console.info('Supabase insert notice:', error.message);
+        if (error) console.warn('Supabase insert notice in surat_masuk:', error.message);
       });
     }
 
@@ -431,8 +436,8 @@ class StorageService {
       ...existing,
       ...updates,
       id: existing.id,
-      nomorAgenda: existing.nomorAgenda,
-      tahunAgenda: existing.tahunAgenda,
+      nomorAgenda: updates.nomorAgenda || existing.nomorAgenda,
+      tahunAgenda: updates.tahunAgenda || existing.tahunAgenda,
       updatedAt: new Date().toISOString(),
     };
 
@@ -450,22 +455,23 @@ class StorageService {
     // Sync to Supabase
     if (supabase) {
       supabase.from('surat_masuk').update({
-        nomor_surat_pengirim: updated.nomorSuratPengirim,
+        nomor_agenda: updated.nomorAgenda || '001',
+        nomor_surat_pengirim: updated.nomorSuratPengirim || '-',
         tanggal_surat: updated.tanggalSurat,
         tanggal_diterima: updated.tanggalDiterima,
         pengirim: updated.pengirim,
         perihal: updated.perihal,
-        ringkasan: updated.ringkasan,
-        kategori: updated.kategori,
-        sifat: updated.sifat,
-        tujuan_internal: updated.tujuanInternal,
-        status: updated.status,
-        catatan: updated.catatan,
-        file_doc: updated.fileDoc,
-        disposisi: updated.disposisi,
+        ringkasan: updated.ringkasan || '',
+        kategori: updated.kategori || 'Dinas / Resmi',
+        sifat: updated.sifat || 'Biasa',
+        tujuan_internal: updated.tujuanInternal || '',
+        status: updated.status || 'Baru Diterima',
+        catatan: updated.catatan || '',
+        file_doc: updated.fileDoc || null,
+        disposisi: updated.disposisi || null,
         updated_at: updated.updatedAt,
       }).eq('id', id).then(({ error }) => {
-        if (error) console.info('Supabase update notice:', error.message);
+        if (error) console.warn('Supabase update notice in surat_masuk:', error.message);
       });
     }
 
@@ -544,7 +550,10 @@ class StorageService {
   }
 
   addSuratKeluar(
-    item: Omit<SuratKeluar, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSuratLengkap'>,
+    item: Omit<SuratKeluar, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSuratLengkap'> & {
+      customNomorSurat?: string;
+      customNomorUrut?: number;
+    },
     user: UserProfile
   ): SuratKeluar {
     const all = this.getSuratKeluar();
@@ -554,11 +563,15 @@ class StorageService {
 
     const nextInfo = this.getNextSuratKeluarInfo(year, monthStr, item.kodeKlasifikasi);
 
+    const isManual = Boolean(item.customNomorSurat?.trim());
+    const finalNomorLengkap = isManual ? item.customNomorSurat!.trim() : nextInfo.nomorLengkap;
+    const finalNomorUrut = item.customNomorUrut || nextInfo.nomorUrut;
+
     const newItem: SuratKeluar = {
       ...item,
-      id: `sk-${year}-${String(nextInfo.nomorUrut).padStart(3, '0')}`,
-      nomorUrut: nextInfo.nomorUrut,
-      nomorSuratLengkap: nextInfo.nomorLengkap,
+      id: `sk-${year}-${String(finalNomorUrut).padStart(3, '0')}-${Date.now().toString(36).substring(4, 7)}`,
+      nomorUrut: finalNomorUrut,
+      nomorSuratLengkap: finalNomorLengkap,
       tahunSurat: year,
       bulanSurat: monthStr,
       createdAt: new Date().toISOString(),
@@ -568,7 +581,7 @@ class StorageService {
 
     all.unshift(newItem);
     this.set(STORAGE_KEYS.SURAT_KELUAR, all);
-    this.commitSuratKeluarNumber(year, nextInfo.nomorUrut);
+    this.commitSuratKeluarNumber(year, finalNomorUrut);
 
     this.logActivity(
       user,
@@ -582,28 +595,28 @@ class StorageService {
     if (supabase) {
       supabase.from('surat_keluar').insert({
         id: newItem.id,
-        nomor_urut: newItem.nomorUrut,
-        nomor_surat_lengkap: newItem.nomorSuratLengkap,
-        tahun_surat: newItem.tahunSurat,
-        bulan_surat: newItem.bulanSurat,
-        kode_klasifikasi: newItem.kodeKlasifikasi,
-        tanggal_surat: newItem.tanggalSurat,
-        tujuan_surat: newItem.tujuanSurat,
-        nama_penerima: newItem.namaPenerima,
-        jabatan_penerima: newItem.jabatanPenerima,
-        alamat_penerima: newItem.alamatPenerima,
-        perihal: newItem.perihal,
-        ringkasan: newItem.ringkasan,
-        kategori: newItem.kategori,
-        sifat: newItem.sifat,
-        status: newItem.status,
-        catatan: newItem.catatan,
-        file_doc: newItem.fileDoc,
-        created_at: newItem.createdAt,
-        updated_at: newItem.updatedAt,
-        created_by: newItem.createdBy,
+        nomor_urut: newItem.nomorUrut || 1,
+        nomor_surat_lengkap: newItem.nomorSuratLengkap || '001/Mis.11.23.14.14/PP.00/01/2026',
+        tahun_surat: newItem.tahunSurat || new Date().getFullYear(),
+        bulan_surat: newItem.bulanSurat || '01',
+        kode_klasifikasi: newItem.kodeKlasifikasi || 'PP.00',
+        tanggal_surat: newItem.tanggalSurat || new Date().toISOString().split('T')[0],
+        tujuan_surat: newItem.tujuanSurat || '-',
+        nama_penerima: newItem.namaPenerima || '',
+        jabatan_penerima: newItem.jabatanPenerima || '',
+        alamat_penerima: newItem.alamatPenerima || '',
+        perihal: newItem.perihal || '-',
+        ringkasan: newItem.ringkasan || '',
+        kategori: newItem.kategori || 'Kurikulum',
+        sifat: newItem.sifat || 'Biasa',
+        status: newItem.status || 'Terkirim',
+        catatan: newItem.catatan || '',
+        file_doc: newItem.fileDoc || null,
+        created_at: newItem.createdAt || new Date().toISOString(),
+        updated_at: newItem.updatedAt || new Date().toISOString(),
+        created_by: newItem.createdBy || 'Administrator',
       }).then(({ error }) => {
-        if (error) console.info('Supabase surat keluar insert notice:', error.message);
+        if (error) console.warn('Supabase surat keluar insert notice:', error.message);
       });
     }
 
@@ -620,8 +633,8 @@ class StorageService {
       ...existing,
       ...updates,
       id: existing.id,
-      nomorUrut: existing.nomorUrut,
-      nomorSuratLengkap: existing.nomorSuratLengkap,
+      nomorUrut: updates.nomorUrut !== undefined ? updates.nomorUrut : existing.nomorUrut,
+      nomorSuratLengkap: updates.nomorSuratLengkap || existing.nomorSuratLengkap,
       tahunSurat: existing.tahunSurat,
       updatedAt: new Date().toISOString(),
     };
@@ -639,21 +652,23 @@ class StorageService {
 
     if (supabase) {
       supabase.from('surat_keluar').update({
+        nomor_surat_lengkap: updated.nomorSuratLengkap,
+        nomor_urut: updated.nomorUrut,
         tanggal_surat: updated.tanggalSurat,
-        tujuan_surat: updated.tujuanSurat,
-        nama_penerima: updated.namaPenerima,
-        jabatan_penerima: updated.jabatanPenerima,
-        alamat_penerima: updated.alamatPenerima,
-        perihal: updated.perihal,
-        ringkasan: updated.ringkasan,
-        kategori: updated.kategori,
-        sifat: updated.sifat,
-        status: updated.status,
-        catatan: updated.catatan,
-        file_doc: updated.fileDoc,
+        tujuan_surat: updated.tujuanSurat || '-',
+        nama_penerima: updated.namaPenerima || '',
+        jabatan_penerima: updated.jabatanPenerima || '',
+        alamat_penerima: updated.alamatPenerima || '',
+        perihal: updated.perihal || '-',
+        ringkasan: updated.ringkasan || '',
+        kategori: updated.kategori || 'Kurikulum',
+        sifat: updated.sifat || 'Biasa',
+        status: updated.status || 'Terkirim',
+        catatan: updated.catatan || '',
+        file_doc: updated.fileDoc || null,
         updated_at: updated.updatedAt,
       }).eq('id', id).then(({ error }) => {
-        if (error) console.info('Supabase update notice:', error.message);
+        if (error) console.warn('Supabase update notice in surat_keluar:', error.message);
       });
     }
 
@@ -689,7 +704,10 @@ class StorageService {
   }
 
   addSuratKeputusan(
-    item: Omit<SuratKeputusan, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSK'>,
+    item: Omit<SuratKeputusan, 'id' | 'createdAt' | 'updatedAt' | 'nomorUrut' | 'nomorSK'> & {
+      customNomorSK?: string;
+      customNomorUrut?: number;
+    },
     user: UserProfile
   ): SuratKeputusan {
     const all = this.getSuratKeputusan();
@@ -699,11 +717,15 @@ class StorageService {
 
     const nextInfo = this.getNextSKInfo(year, monthStr);
 
+    const isManual = Boolean(item.customNomorSK?.trim());
+    const finalNomorSK = isManual ? item.customNomorSK!.trim() : nextInfo.nomorSK;
+    const finalNomorUrut = item.customNomorUrut || nextInfo.nomorUrut;
+
     const newItem: SuratKeputusan = {
       ...item,
-      id: `skep-${year}-${String(nextInfo.nomorUrut).padStart(3, '0')}`,
-      nomorUrut: nextInfo.nomorUrut,
-      nomorSK: nextInfo.nomorSK,
+      id: `skep-${year}-${String(finalNomorUrut).padStart(3, '0')}-${Date.now().toString(36).substring(4, 7)}`,
+      nomorUrut: finalNomorUrut,
+      nomorSK: finalNomorSK,
       tahun: year,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -712,7 +734,7 @@ class StorageService {
 
     all.unshift(newItem);
     this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, all);
-    this.commitSKNumber(year, nextInfo.nomorUrut);
+    this.commitSKNumber(year, finalNomorUrut);
 
     this.logActivity(
       user,
@@ -725,23 +747,23 @@ class StorageService {
     if (supabase) {
       supabase.from('surat_keputusan').insert({
         id: newItem.id,
-        nomor_sk: newItem.nomorSK,
-        nomor_urut: newItem.nomorUrut,
-        tahun: newItem.tahun,
-        judul: newItem.judul,
-        tentang: newItem.tentang,
-        tanggal_sk: newItem.tanggalSK,
-        tahun_pelajaran: newItem.tahunPelajaran,
-        penandatangan: newItem.penandatangan,
-        jabatan_penandatangan: newItem.jabatanPenandatangan,
-        status: newItem.status,
-        ringkasan: newItem.ringkasan,
-        file_doc: newItem.fileDoc,
-        created_at: newItem.createdAt,
-        updated_at: newItem.updatedAt,
-        created_by: newItem.createdBy,
+        nomor_sk: newItem.nomorSK || '001 Tahun 2026',
+        nomor_urut: newItem.nomorUrut || 1,
+        tahun: newItem.tahun || new Date().getFullYear(),
+        judul: newItem.judul || '-',
+        tentang: newItem.tentang || '-',
+        tanggal_sk: newItem.tanggalSK || new Date().toISOString().split('T')[0],
+        tahun_pelajaran: newItem.tahunPelajaran || '2025/2026',
+        penandatangan: newItem.penandatangan || 'Kepala Madrasah',
+        jabatan_penandatangan: newItem.jabatanPenandatangan || 'Kepala Madrasah',
+        status: newItem.status || 'Berlaku',
+        ringkasan: newItem.ringkasan || '',
+        file_doc: newItem.fileDoc || null,
+        created_at: newItem.createdAt || new Date().toISOString(),
+        updated_at: newItem.updatedAt || new Date().toISOString(),
+        created_by: newItem.createdBy || 'Administrator',
       }).then(({ error }) => {
-        if (error) console.info('Supabase SK insert notice:', error.message);
+        if (error) console.warn('Supabase SK insert notice:', error.message);
       });
     }
 
@@ -758,8 +780,8 @@ class StorageService {
       ...existing,
       ...updates,
       id: existing.id,
-      nomorSK: existing.nomorSK,
-      nomorUrut: existing.nomorUrut,
+      nomorSK: updates.nomorSK || existing.nomorSK,
+      nomorUrut: updates.nomorUrut !== undefined ? updates.nomorUrut : existing.nomorUrut,
       updatedAt: new Date().toISOString(),
     };
 
@@ -776,18 +798,20 @@ class StorageService {
 
     if (supabase) {
       supabase.from('surat_keputusan').update({
-        judul: updated.judul,
-        tentang: updated.tentang,
+        nomor_sk: updated.nomorSK,
+        nomor_urut: updated.nomorUrut,
+        judul: updated.judul || '-',
+        tentang: updated.tentang || '-',
         tanggal_sk: updated.tanggalSK,
-        tahun_pelajaran: updated.tahunPelajaran,
-        penandatangan: updated.penandatangan,
-        jabatan_penandatangan: updated.jabatanPenandatangan,
-        status: updated.status,
-        ringkasan: updated.ringkasan,
-        file_doc: updated.fileDoc,
+        tahun_pelajaran: updated.tahunPelajaran || '2025/2026',
+        penandatangan: updated.penandatangan || 'Kepala Madrasah',
+        jabatan_penandatangan: updated.jabatanPenandatangan || 'Kepala Madrasah',
+        status: updated.status || 'Berlaku',
+        ringkasan: updated.ringkasan || '',
+        file_doc: updated.fileDoc || null,
         updated_at: updated.updatedAt,
       }).eq('id', id).then(({ error }) => {
-        if (error) console.info('Supabase SK update notice:', error.message);
+        if (error) console.warn('Supabase SK update notice:', error.message);
       });
     }
 
@@ -846,20 +870,24 @@ class StorageService {
     if (supabase) {
       supabase.from('arsip_digital').insert({
         id: newItem.id,
-        kode_arsip: newItem.kodeArsip,
-        judul_arsip: newItem.judulArsip,
-        kategori: newItem.kategori,
-        tahun: newItem.tahun,
-        nomor_dokumen_terkait: newItem.nomorDokumenTerait,
-        deskripsi: newItem.deskripsi,
-        tags: newItem.tags,
-        file_doc: newItem.fileDoc,
-        lokasi_fisik: newItem.lokasiFisik,
-        created_at: newItem.createdAt,
-        updated_at: newItem.updatedAt,
-        created_by: newItem.createdBy,
+        kode_arsip: newItem.kodeArsip || `ARS-${Date.now()}`,
+        judul_arsip: newItem.judulArsip || '-',
+        kategori: newItem.kategori || 'Umum',
+        tahun: newItem.tahun || new Date().getFullYear(),
+        nomor_dokumen_terkait: newItem.nomorDokumenTerait || '',
+        deskripsi: newItem.deskripsi || '',
+        tags: newItem.tags || [],
+        file_doc: newItem.fileDoc || {
+          fileName: 'Dokumen Arsip',
+          fileType: 'application/pdf',
+          fileSize: 0,
+        },
+        lokasi_fisik: newItem.lokasiFisik || '',
+        created_at: newItem.createdAt || new Date().toISOString(),
+        updated_at: newItem.updatedAt || new Date().toISOString(),
+        created_by: newItem.createdBy || 'Administrator',
       }).then(({ error }) => {
-        if (error) console.info('Supabase arsip insert notice:', error.message);
+        if (error) console.warn('Supabase arsip insert notice:', error.message);
       });
     }
 
@@ -943,6 +971,26 @@ class StorageService {
     }
 
     try {
+      // 0. Fetch pengaturan_madrasah (Identitas Madrasah, Kepala Madrasah, Operator, Password, Logo)
+      try {
+        const { data: remoteSett } = await supabase
+          .from('pengaturan_madrasah')
+          .select('data')
+          .eq('id', 'default_setting')
+          .maybeSingle();
+
+        if (remoteSett && remoteSett.data) {
+          const current = this.getSettings();
+          this.set(STORAGE_KEYS.SETTINGS, {
+            ...current,
+            ...remoteSett.data,
+            supabaseConfig: remoteSett.data.supabaseConfig || current.supabaseConfig,
+          });
+        }
+      } catch (settErr) {
+        console.warn('Sync pengaturan notice:', settErr);
+      }
+
       // 1. Fetch surat_masuk
       const { data: remoteSM, error: smErr } = await supabase
         .from('surat_masuk')
@@ -1109,6 +1157,31 @@ class StorageService {
         }));
         this.set(STORAGE_KEYS.ARSIP, mappedArsip);
         countArsip = mappedArsip.length;
+      }
+
+      // 5. Fetch activity_logs
+      try {
+        const { data: remoteLogs } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(100);
+
+        if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+          const mappedLogs: ActivityLog[] = remoteLogs.map((l: any) => ({
+            id: l.id,
+            userId: l.user_id,
+            userName: l.user_name,
+            action: l.action,
+            entityType: l.entity_type,
+            entityId: l.entity_id,
+            details: l.details,
+            timestamp: l.timestamp,
+          }));
+          this.set(STORAGE_KEYS.ACTIVITY_LOGS, mappedLogs);
+        }
+      } catch (logErr) {
+        console.warn('Sync activity logs notice:', logErr);
       }
 
       return {

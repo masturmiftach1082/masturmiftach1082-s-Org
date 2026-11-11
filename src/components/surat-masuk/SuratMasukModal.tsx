@@ -43,6 +43,8 @@ export default function SuratMasukModal({
 
   const [nomorAgendaPreview, setNomorAgendaPreview] = useState('001');
   const [tahunAgenda, setTahunAgenda] = useState(new Date().getFullYear());
+  const [modeAgenda, setModeAgenda] = useState<'otomatis' | 'manual'>('otomatis');
+  const [customNomorAgenda, setCustomNomorAgenda] = useState('');
   const [nomorSuratPengirim, setNomorSuratPengirim] = useState('');
   const [tanggalSurat, setTanggalSurat] = useState('');
   const [tanggalDiterima, setTanggalDiterima] = useState('');
@@ -65,7 +67,9 @@ export default function SuratMasukModal({
   useEffect(() => {
     if (suratToEdit) {
       setNomorAgendaPreview(suratToEdit.nomorAgenda);
+      setCustomNomorAgenda(suratToEdit.nomorAgenda);
       setTahunAgenda(suratToEdit.tahunAgenda);
+      setModeAgenda('otomatis');
       setNomorSuratPengirim(suratToEdit.nomorSuratPengirim);
       setTanggalSurat(suratToEdit.tanggalSurat);
       setTanggalDiterima(suratToEdit.tanggalDiterima);
@@ -89,7 +93,9 @@ export default function SuratMasukModal({
       const currentYear = new Date().getFullYear();
       const nextAgenda = storageService.getNextAgendaSuratMasuk(currentYear);
       setNomorAgendaPreview(nextAgenda);
+      setCustomNomorAgenda(nextAgenda);
       setTahunAgenda(currentYear);
+      setModeAgenda('otomatis');
       setNomorSuratPengirim('');
       const today = new Date().toISOString().split('T')[0];
       setTanggalSurat(today);
@@ -147,10 +153,13 @@ export default function SuratMasukModal({
         }
       : undefined;
 
+    const finalAgenda = modeAgenda === 'manual' && customNomorAgenda.trim() ? customNomorAgenda.trim() : undefined;
+
     if (isEdit && suratToEdit) {
       storageService.updateSuratMasuk(
         suratToEdit.id,
         {
+          nomorAgenda: finalAgenda || suratToEdit.nomorAgenda,
           nomorSuratPengirim: nomorSuratPengirim.trim(),
           tanggalSurat,
           tanggalDiterima,
@@ -183,6 +192,7 @@ export default function SuratMasukModal({
           catatan: catatan.trim(),
           fileDoc,
           createdBy: currentUser.name,
+          customNomorAgenda: finalAgenda,
         },
         currentUser
       );
@@ -206,13 +216,13 @@ export default function SuratMasukModal({
                 {isEdit ? 'Ubah Data Surat Masuk' : 'Tambah Surat Masuk Baru'}
               </h3>
               <p className="text-xs text-amber-200/80">
-                MI Ma'arif Al Ihsan Soborejo · Sistem Penomoran Agenda Terintegrasi
+                MI Ma'arif Al Ihsan Soborejo · Penomoran Agenda Otomatis & Manual
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-emerald-200 hover:text-white rounded-lg hover:bg-emerald-800 transition-colors"
+            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -220,17 +230,66 @@ export default function SuratMasukModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
-          {/* Agenda Number Lock Banner */}
-          <div className="flex items-center justify-between p-3.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-emerald-900">Nomor Agenda Otomatis:</span>
-              <span className="font-mono font-bold text-sm text-emerald-800 bg-white px-2.5 py-0.5 rounded border border-emerald-300">
-                #{nomorAgendaPreview} / {tahunAgenda}
-              </span>
+          {/* Agenda Number Option Selector Card */}
+          <div className="p-3.5 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-amber-50/40 rounded-xl border border-emerald-300 shadow-xs space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-emerald-950 text-xs">Penomoran Agenda Masuk:</span>
+                {modeAgenda === 'otomatis' ? (
+                  <span className="font-mono font-bold text-sm text-emerald-900 bg-white px-2.5 py-0.5 rounded border border-emerald-300">
+                    #{nomorAgendaPreview} / {tahunAgenda}
+                  </span>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-xs text-amber-950">#</span>
+                    <input
+                      type="text"
+                      required
+                      value={customNomorAgenda}
+                      onChange={(e) => setCustomNomorAgenda(e.target.value)}
+                      placeholder="Contoh: 045 atau 001-A"
+                      className="font-mono font-bold text-xs px-2 py-0.5 border-2 border-amber-400 bg-white rounded focus:ring-1 focus:ring-amber-500 focus:outline-none w-28"
+                    />
+                    <span className="font-mono text-xs text-slate-500">/ {tahunAgenda}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Toggle */}
+              <div className="inline-flex p-0.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setModeAgenda('otomatis')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                    modeAgenda === 'otomatis'
+                      ? 'bg-[#023126] text-amber-300'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Otomatis
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModeAgenda('manual');
+                    if (!customNomorAgenda) setCustomNomorAgenda(nomorAgendaPreview);
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                    modeAgenda === 'manual'
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Manual (Ketik Sendiri)
+                </button>
+              </div>
             </div>
-            <span className="text-[11px] text-emerald-700 italic">
-              {isEdit ? 'Nomor agenda permanen (tidak berubah saat edit)' : 'Nomor berurutan & unik per tahun'}
-            </span>
+
+            <p className="text-[10px] text-emerald-800">
+              {modeAgenda === 'otomatis'
+                ? 'Nomor agenda otomatis diurutkan sistem per tahun kalender (dimulai dari 001).'
+                : 'Mode manual aktif: Anda bebas menentukan nomor agenda untuk arsip susulan atau penomoran khusus.'}
+            </p>
           </div>
 
           {/* Row 1: No Surat Pengirim, Tgl Surat, Tgl Diterima */}

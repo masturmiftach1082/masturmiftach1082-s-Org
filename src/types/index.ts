@@ -176,6 +176,7 @@ export interface MadrasahSettings {
     isConnected: boolean;
   };
   adminPassword?: string; // Password to unlock Administrator mode (default: admin123)
+  izinkanNomorManual?: boolean; // Mengizinkan penomoran manual pada surat keluar, SK, dan agenda
 }
 
 export interface ActivityLog {

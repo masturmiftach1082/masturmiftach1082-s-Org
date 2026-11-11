@@ -31,6 +31,10 @@ export default function SuratKeputusanModal({
   const [status, setStatus] = useState<StatusSK>('Berlaku');
   const [ringkasan, setRingkasan] = useState('');
 
+  const [modePenomoran, setModePenomoran] = useState<'otomatis' | 'manual'>('otomatis');
+  const [manualNomorSK, setManualNomorSK] = useState('');
+  const [manualNomorUrut, setManualNomorUrut] = useState<number | ''>('');
+
   // File upload state
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState<number>(0);
@@ -59,6 +63,9 @@ export default function SuratKeputusanModal({
       setJabatanPenandatangan(skToEdit.jabatanPenandatangan);
       setStatus(skToEdit.status);
       setRingkasan(skToEdit.ringkasan);
+      setManualNomorSK(skToEdit.nomorSK || '');
+      setManualNomorUrut(skToEdit.nomorUrut || '');
+      setModePenomoran('otomatis');
 
       if (skToEdit.fileDoc) {
         setFileName(skToEdit.fileDoc.fileName);
@@ -80,6 +87,9 @@ export default function SuratKeputusanModal({
       setFileSize(0);
       setFileType('application/pdf');
       setDriveFileId('');
+      setManualNomorSK('');
+      setManualNomorUrut('');
+      setModePenomoran('otomatis');
     }
   }, [skToEdit, isOpen, settings]);
 
@@ -96,11 +106,24 @@ export default function SuratKeputusanModal({
     }
   };
 
+  const handleCopyGeneratedToManual = () => {
+    setManualNomorSK(generatedSKNumber);
+    const match = generatedSKNumber.match(/^(\d+)/);
+    if (match) {
+      setManualNomorUrut(parseInt(match[1], 10));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!judul.trim() || !tentang.trim() || !tanggalSK) {
       alert('Mohon lengkapi Judul SK, Pokok Ketetapan (Tentang), dan Tanggal SK.');
+      return;
+    }
+
+    if (modePenomoran === 'manual' && !manualNomorSK.trim()) {
+      alert('Mode penomoran manual aktif. Silakan masukkan nomor SK yang diinginkan.');
       return;
     }
 
@@ -122,6 +145,8 @@ export default function SuratKeputusanModal({
       storageService.updateSuratKeputusan(
         skToEdit.id,
         {
+          nomorSK: modePenomoran === 'manual' ? manualNomorSK.trim() : skToEdit.nomorSK,
+          nomorUrut: modePenomoran === 'manual' && typeof manualNomorUrut === 'number' ? manualNomorUrut : skToEdit.nomorUrut,
           tanggalSK,
           judul: judul.trim(),
           tentang: tentang.trim(),
@@ -151,6 +176,8 @@ export default function SuratKeputusanModal({
           ringkasan: ringkasan.trim(),
           fileDoc,
           createdBy: currentUser.name,
+          customNomorSK: modePenomoran === 'manual' ? manualNomorSK.trim() : undefined,
+          customNomorUrut: modePenomoran === 'manual' && typeof manualNomorUrut === 'number' ? manualNomorUrut : undefined,
         },
         currentUser
       );
@@ -174,13 +201,13 @@ export default function SuratKeputusanModal({
                 {isEdit ? 'Ubah Surat Keputusan (SK)' : 'Terbitkan Surat Keputusan (SK) Baru'}
               </h3>
               <p className="text-xs text-amber-200/80">
-                MI Ma'arif Al Ihsan Soborejo · Penetapan Regulasi dan Keputusan Resmi
+                MI Ma'arif Al Ihsan Soborejo · Opsi Penomoran SK Otomatis & Manual
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -188,26 +215,117 @@ export default function SuratKeputusanModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
-          {/* Automatic SK Number Display */}
-          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Numbering Option Selector Card (Automatic vs Manual) */}
+          <div className="p-4 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-amber-50/40 rounded-xl border border-emerald-300 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                Nomor Surat Keputusan (SK) Resmi
+                Opsi Penomoran Surat Keputusan (SK)
               </span>
-              <span className="text-[11px] text-emerald-800 italic">
-                {isEdit ? 'Nomor SK permanen' : 'Format SK Kepala Madrasah'}
-              </span>
+
+              {/* Radio Switcher */}
+              <div className="inline-flex p-1 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setModePenomoran('otomatis')}
+                  className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                    modePenomoran === 'otomatis'
+                      ? 'bg-[#023126] text-amber-300 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Otomatis ({settings.formatPenomoranSK || 'XXX Tahun YYYY'})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModePenomoran('manual');
+                    if (!manualNomorSK) {
+                      setManualNomorSK(generatedSKNumber);
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                    modePenomoran === 'manual'
+                      ? 'bg-amber-500 text-slate-950 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Manual (Input Bebas)
+                </button>
+              </div>
             </div>
 
-            <div className="p-3 bg-white rounded-lg border border-emerald-300 flex items-center justify-between">
-              <span className="font-mono text-sm md:text-base font-extrabold text-emerald-900 tracking-wide">
-                {generatedSKNumber}
-              </span>
-              <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">
-                Format: {settings.formatPenomoranSK || 'XXX Tahun YYYY'}
-              </span>
-            </div>
+            {/* Mode Otomatis View */}
+            {modePenomoran === 'otomatis' ? (
+              <div className="p-3 bg-white rounded-lg border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] text-emerald-800 font-semibold block uppercase">
+                    Nomor SK Terkunci Format Resmi:
+                  </span>
+                  <span className="font-mono text-sm md:text-base font-extrabold text-emerald-950 tracking-wide">
+                    {generatedSKNumber}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">
+                    Format: {settings.formatPenomoranSK || 'XXX Tahun YYYY'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModePenomoran('manual');
+                      handleCopyGeneratedToManual();
+                    }}
+                    className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
+                  >
+                    Edit Manual
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Mode Manual Input View */
+              <div className="p-3.5 bg-white rounded-lg border border-amber-300 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-950 flex items-center gap-1">
+                    <span>Masukkan Nomor SK Bebas / Kustom:</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyGeneratedToManual}
+                    className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition-colors cursor-pointer"
+                    title="Gunakan format otomatis sebagai draf"
+                  >
+                    Terapkan Nomor Otomatis
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <div className="sm:col-span-3">
+                    <input
+                      type="text"
+                      required
+                      value={manualNomorSK}
+                      onChange={(e) => setManualNomorSK(e.target.value)}
+                      placeholder="Contoh: 005 Tahun 2026 atau 015/MI.11.23.0053/SK/VII/2026"
+                      className="w-full text-xs font-mono font-bold px-3 py-2 border-2 border-amber-400 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 bg-amber-50/20"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      value={manualNomorUrut}
+                      onChange={(e) => setManualNomorUrut(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                      placeholder="No Urut (opsional)"
+                      className="w-full text-xs font-mono px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-amber-800 leading-tight">
+                  💡 <strong>Mode Manual Aktif:</strong> Anda dapat memasukkan nomor SK dengan format penomoran khusus yayasan, madrasah, atau nomor SK fisik yang telah disahkan sebelumnya.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Row 1: Judul SK */}
