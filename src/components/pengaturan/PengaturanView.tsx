@@ -23,6 +23,7 @@ import {
   Activity,
   Lock,
 } from 'lucide-react';
+import GoogleDriveCard from '../common/GoogleDriveCard';
 
 interface PengaturanViewProps {
   settings: MadrasahSettings;
@@ -752,48 +753,8 @@ export default function PengaturanView({
               )}
             </div>
 
-            {/* Google Drive status */}
-            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-950 flex items-center gap-1.5">
-                  <HardDrive className="w-4 h-4 text-emerald-700" /> Google Drive Cloud Storage
-                </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Terhubung
-                </span>
-              </div>
-              <p className="text-slate-600 text-[11px]">
-                Seluruh file PDF dan scan surat tersimpan di Google Drive madrasah tanpa membebani kuota Supabase.
-              </p>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Folder ID Surat Masuk</label>
-                <input
-                  type="text"
-                  value={formData.googleDriveConfig.folderIdSuratMasuk}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      googleDriveConfig: { ...formData.googleDriveConfig, folderIdSuratMasuk: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono text-[11px]"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Folder ID Surat Keluar</label>
-                <input
-                  type="text"
-                  value={formData.googleDriveConfig.folderIdSuratKeluar}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      googleDriveConfig: { ...formData.googleDriveConfig, folderIdSuratKeluar: e.target.value },
-                    })
-                  }
-                  className="w-full px-3 py-1.5 border border-slate-300 rounded font-mono text-[11px]"
-                />
-              </div>
-            </div>
+            {/* Google Drive Status & Connection */}
+            <GoogleDriveCard />
           </div>
 
           {/* Supabase SQL DDL Schema helper */}
