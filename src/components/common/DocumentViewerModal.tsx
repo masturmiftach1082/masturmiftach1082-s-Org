@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { GoogleDriveMetadata, MadrasahSettings } from '../../types';
 import { formatFileSize, formatDateTimeIndo } from '../../utils/formatters';
+import MadrasahKop from './MadrasahKop';
 import {
   ExternalLink,
   Download,
@@ -310,17 +311,7 @@ export default function DocumentViewerModal({
               >
                 <div>
                   {/* Header Kop */}
-                  <div className="text-center border-b-2 border-slate-800 pb-3 mb-5">
-                    <p className="text-xs uppercase tracking-wider font-sans font-bold text-slate-600">
-                      Lembaga Pendidikan Ma'arif NU Kab. Temanggung
-                    </p>
-                    <h4 className="text-base uppercase font-sans font-extrabold text-emerald-900 tracking-wide mt-0.5">
-                      {settings.namaMadrasah}
-                    </h4>
-                    <p className="text-[11px] text-slate-500 font-sans mt-0.5">
-                      {settings.alamat} · NSM: {settings.nsm} · NPSN: {settings.npsn}
-                    </p>
-                  </div>
+                  <MadrasahKop settings={settings} />
 
                   {/* Surat Title / Summary */}
                   <div className="my-5 text-center font-sans">

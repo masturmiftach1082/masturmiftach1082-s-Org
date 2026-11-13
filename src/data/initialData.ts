@@ -30,6 +30,22 @@ export const initialMadrasahSettings: MadrasahSettings = {
   formatPenomoranSK: "XXX Tahun YYYY",
   logoUrl: "https://i.ibb.co.com/prnMkxBh/Logo-MI-Al-Ihsan.png",
   kopSuratFormat: "LEMBAGA PENDIDIKAN MA'ARIF NU KABUPATEN TEMANGGUNG\nMI MA'ARIF AL IHSAN SOBOREJO\nTERAKREDITASI A",
+  kopSurat: {
+    baris1Instansi: "Lembaga Pendidikan Ma'arif NU Kabupaten Temanggung",
+    baris2Judul: "MI Ma'arif Al Ihsan Soborejo",
+    baris3Status: 'STATUS: TERAKREDITASI "A" (UNGGUL) · NSM: 111233230053 · NPSN: 60713037',
+    baris4Alamat: "Alamat: Dusun Nglarangan 002/003, Desa Soborejo, Kec. Pringsurat, Kab. Temanggung 56272",
+    baris5Kontak: "Telp: (0293) 710291 / 0813-2891-4452 · Email: alihsansoborejo@gmail.com · Website: mimaarifsoborejo.sch.id",
+    baris6Tambahan: "",
+    tampilkanLogo: true,
+    posisiLogo: 'left',
+    logoKananUrl: '',
+    ukuranLogo: 'md',
+    perataanTeks: 'center',
+    warnaJudul: 'emerald',
+    gayaGarisBawah: 'double',
+    warnaGarisBawah: 'slate',
+  },
   supabaseConfig: {
     url: "https://emdjxbjhrlqsficqyors.supabase.co",
     anonKey: "sb_publishable_j01ZRuz0bWZhX0g_hpaeCQ_1mbIPdjY",
@@ -95,8 +111,8 @@ export const initialArsipDigital: ArsipDigital[] = [];
 export const initialActivityLogs: ActivityLog[] = [
   {
     id: 'log-init',
-    userId: 'user-2',
-    userName: 'Siti Aminah, S.Pd.',
+    userId: 'admin-1',
+    userName: 'Administrator SIPAS',
     action: 'Koneksi Supabase',
     entityType: 'Pengaturan',
     details: 'Sistem SIPAS MI Ma\'arif Al Ihsan Soborejo terhubung ke Supabase (emdjxbjhrlqsficqyors.supabase.co). Data bersih siap digunakan.',

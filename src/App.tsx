@@ -253,6 +253,10 @@ export default function App() {
   const handleSaveDisposisi = (suratId: string, disposisiData: any) => {
     storageService.saveDisposisi(suratId, disposisiData, currentUser);
     refreshData();
+    const updated = storageService.getSuratMasuk().find((s) => s.id === suratId);
+    if (updated && selectedSuratMasuk?.id === suratId) {
+      setSelectedSuratMasuk(updated);
+    }
   };
 
   const handlePrintDisposisi = (surat: SuratMasuk) => {

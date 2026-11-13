@@ -144,6 +144,23 @@ export interface KlasifikasiSurat {
   deskripsi: string;
 }
 
+export interface KopSuratConfig {
+  baris1Instansi: string;
+  baris2Judul: string;
+  baris3Status: string;
+  baris4Alamat: string;
+  baris5Kontak: string;
+  baris6Tambahan?: string;
+  tampilkanLogo: boolean;
+  posisiLogo: 'left' | 'both' | 'right';
+  logoKananUrl?: string;
+  ukuranLogo: 'sm' | 'md' | 'lg';
+  perataanTeks: 'center' | 'left';
+  warnaJudul: 'emerald' | 'slate' | 'blue' | 'green' | 'amber';
+  gayaGarisBawah: 'double' | 'thick-thin' | 'solid' | 'none';
+  warnaGarisBawah: 'slate' | 'emerald' | 'blue' | 'green' | 'amber';
+}
+
 export interface MadrasahSettings {
   namaMadrasah: string;
   namaAplikasi: string;
@@ -165,6 +182,7 @@ export interface MadrasahSettings {
   formatPenomoranSK: string; // "XXX Tahun YYYY"
   logoUrl: string;
   kopSuratFormat: string;
+  kopSurat?: KopSuratConfig;
   supabaseConfig: {
     url: string;
     anonKey: string;

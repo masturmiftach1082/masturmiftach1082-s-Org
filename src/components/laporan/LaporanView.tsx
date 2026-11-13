@@ -1,8 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { SuratMasuk, SuratKeluar, SuratKeputusan, MadrasahSettings } from '../../types';
 import { formatDateIndo, exportToCSV } from '../../utils/formatters';
 import MadrasahKop from '../common/MadrasahKop';
-import { Printer, Download, BookOpen, Send, Award, BarChart3, Filter } from 'lucide-react';
+import {
+  Printer,
+  Download,
+  BookOpen,
+  Send,
+  Award,
+  BarChart3,
+  Filter,
+  RectangleVertical,
+  RectangleHorizontal,
+} from 'lucide-react';
 
 interface LaporanViewProps {
   suratMasukList: SuratMasuk[];
@@ -12,6 +22,7 @@ interface LaporanViewProps {
 }
 
 type LaporanType = 'agenda_masuk' | 'agenda_keluar' | 'daftar_sk' | 'rekap_tahunan';
+type PrintOrientation = 'portrait' | 'landscape';
 
 export default function LaporanView({
   suratMasukList,
@@ -23,6 +34,25 @@ export default function LaporanView({
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [orientation, setOrientation] = useState<PrintOrientation>('portrait');
+
+  // Dynamically apply @page print orientation for Laporan / Buku Agenda
+  useEffect(() => {
+    const styleId = 'laporan-print-orientation';
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `@media print { @page { size: A4 ${orientation}; margin: ${
+      orientation === 'landscape' ? '1.2cm 1.5cm' : '1.5cm'
+    }; } }`;
+
+    return () => {
+      styleEl?.remove();
+    };
+  }, [orientation]);
 
   // Filtered surat masuk for report
   const filteredMasuk = useMemo(() => {
@@ -133,7 +163,41 @@ export default function LaporanView({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Orientation Selector */}
+            <div
+              className="inline-flex items-center bg-white border border-slate-300 rounded-lg p-0.5 shadow-sm"
+              role="group"
+              aria-label="Orientasi Cetak"
+            >
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                title="Cetak Tegak (Portrait)"
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  orientation === 'portrait'
+                    ? 'bg-[#023126] text-amber-300 shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <RectangleVertical className="w-3.5 h-3.5" />
+                <span>Portrait</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                title="Cetak Mendatar (Landscape)"
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  orientation === 'landscape'
+                    ? 'bg-[#023126] text-amber-300 shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <RectangleHorizontal className="w-3.5 h-3.5" />
+                <span>Landscape</span>
+              </button>
+            </div>
+
             <button
               onClick={handleExport}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors cursor-pointer"
@@ -272,7 +336,21 @@ export default function LaporanView({
       </div>
 
       {/* Printable Sheet Viewport */}
-      <div className="p-8 md:p-12 bg-white border border-slate-200 rounded-xl shadow-xs text-xs text-slate-900 min-h-[750px]">
+      <div
+        className={`p-8 md:p-12 bg-white border border-slate-200 rounded-xl shadow-xs text-xs text-slate-900 min-h-[750px] mx-auto transition-all duration-200 print:w-full print:max-w-none print:border-0 print:shadow-none print:rounded-none print:p-0 ${
+          orientation === 'portrait' ? 'max-w-[820px]' : 'w-full'
+        }`}
+      >
+        <div className="no-print mb-3 flex items-center justify-end">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            {orientation === 'portrait' ? (
+              <RectangleVertical className="w-3.5 h-3.5 text-emerald-700" />
+            ) : (
+              <RectangleHorizontal className="w-3.5 h-3.5 text-emerald-700" />
+            )}
+            Pratinjau Kertas: A4 {orientation === 'portrait' ? 'Portrait (Tegak)' : 'Landscape (Mendatar)'}
+          </span>
+        </div>
         {/* Official Kop Madrasah */}
         <MadrasahKop
           settings={settings}
@@ -469,23 +547,25 @@ export default function LaporanView({
         )}
 
         {/* Signature Block (Standard Indonesian Madrasah Format) */}
-        <div className="flex justify-between items-end pt-8 mt-6">
-          <div className="text-left text-[11px] text-slate-600 space-y-1">
+        <div className="flex justify-between items-start pt-8 mt-6 gap-6">
+          <div className="text-left text-xs text-slate-800 space-y-0.5">
             <p>Mengetahui,</p>
-            <p className="font-semibold text-slate-800">Operator Madrasah</p>
-            <div className="h-14" />
-            <p className="font-bold underline text-slate-900">{settings.operatorMadrasah || 'Siti Aminah, S.Pd.'}</p>
-            <p className="text-[11px] text-slate-700">
-              {settings.nipOperatorMadrasah ? `NIP/NUPTK. ${settings.nipOperatorMadrasah}` : '-'}
-            </p>
+            <p className="font-bold">Kepala Madrasah,</p>
+            <div className="h-16" />
+            <p className="font-bold underline text-sm text-slate-900">{settings.kepalaMadrasah}</p>
+            <p className="text-[11px] text-slate-700">NIP. {settings.nipKepalaMadrasah || '-'}</p>
           </div>
 
-          <div className="text-center text-xs">
+          <div className="text-center text-xs text-slate-800 space-y-0.5 min-w-[200px]">
             <p>Soborejo, {formatDateIndo(new Date().toISOString().split('T')[0])}</p>
-            <p className="font-bold mt-0.5">Kepala Madrasah,</p>
-            <div className="h-14" />
-            <p className="font-bold underline text-sm">{settings.kepalaMadrasah}</p>
-            <p className="text-[11px] text-slate-700">NIP. {settings.nipKepalaMadrasah}</p>
+            <p className="font-bold">Operator Madrasah,</p>
+            <div className="h-16" />
+            <p className="font-bold underline text-sm text-slate-900">{settings.operatorMadrasah || '-'}</p>
+            <p className="text-[11px] text-slate-700">
+              {settings.nipOperatorMadrasah && settings.nipOperatorMadrasah !== '-'
+                ? `NIP/NUPTK. ${settings.nipOperatorMadrasah}`
+                : 'NIP/NUPTK. -'}
+            </p>
           </div>
         </div>
       </div>

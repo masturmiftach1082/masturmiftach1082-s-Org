@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MadrasahSettings, KlasifikasiSurat, UserProfile } from '../../types';
+import { MadrasahSettings, KlasifikasiSurat, UserProfile, KopSuratConfig } from '../../types';
+import { initialMadrasahSettings } from '../../data/initialData';
 import { storageService } from '../../services/storageService';
 import { testSupabaseConnection, SUPABASE_SQL_SCHEMA } from '../../services/supabaseClient';
 import {
@@ -22,8 +23,14 @@ import {
   Terminal,
   Activity,
   Lock,
+  LayoutTemplate,
+  AlignCenter,
+  AlignLeft,
+  Image as ImageIcon,
+  RotateCcw,
 } from 'lucide-react';
 import GoogleDriveCard from '../common/GoogleDriveCard';
+import MadrasahKop from '../common/MadrasahKop';
 
 interface PengaturanViewProps {
   settings: MadrasahSettings;
@@ -36,8 +43,14 @@ export default function PengaturanView({
   currentUser,
   onSettingsSaved,
 }: PengaturanViewProps) {
-  const [activeTab, setActiveTab] = useState<'madrasah' | 'penomoran' | 'integrasi' | 'backup'>('madrasah');
-  const [formData, setFormData] = useState<MadrasahSettings>({ ...settings });
+  const [activeTab, setActiveTab] = useState<'madrasah' | 'kop' | 'penomoran' | 'integrasi' | 'backup'>('madrasah');
+  const [formData, setFormData] = useState<MadrasahSettings>({
+    ...settings,
+    kopSurat: {
+      ...initialMadrasahSettings.kopSurat!,
+      ...(settings.kopSurat || {}),
+    },
+  });
   const [klasifikasiList, setKlasifikasiList] = useState<KlasifikasiSurat[]>(storageService.getKlasifikasi());
   const [newKode, setNewKode] = useState('');
   const [newNama, setNewNama] = useState('');
@@ -115,6 +128,69 @@ export default function PengaturanView({
     onSettingsSaved(formData);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const kopData: KopSuratConfig = {
+    ...initialMadrasahSettings.kopSurat!,
+    ...(formData.kopSurat || {}),
+  };
+
+  const updateKop = (patch: Partial<KopSuratConfig>) => {
+    setFormData((prev) => ({
+      ...prev,
+      kopSurat: {
+        ...initialMadrasahSettings.kopSurat!,
+        ...(prev.kopSurat || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleSyncKopFromIdentitas = () => {
+    updateKop({
+      baris2Judul: formData.namaMadrasah,
+      baris3Status: `STATUS: TERAKREDITASI "A" (UNGGUL) · NSM: ${formData.nsm} · NPSN: ${formData.npsn}`,
+      baris4Alamat: `Alamat: ${formData.alamat}, Kec. ${formData.kecamatan}, Kab. ${formData.kabupaten} ${formData.kodePos}`,
+      baris5Kontak: `Telp: ${formData.telepon} · Email: ${formData.email} · Website: ${formData.website}`,
+    });
+  };
+
+  const handleResetKopDefault = () => {
+    setFormData((prev) => ({
+      ...prev,
+      kopSurat: { ...initialMadrasahSettings.kopSurat! },
+    }));
+  };
+
+  const handleUploadLogoFile = (e: React.ChangeEvent<HTMLInputElement>, target: 'left' | 'right') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 240;
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/png');
+          if (target === 'left') {
+            setFormData((prev) => ({ ...prev, logoUrl: dataUrl }));
+          } else {
+            updateKop({ logoKananUrl: dataUrl });
+          }
+        }
+      };
+      if (typeof reader.result === 'string') {
+        img.src = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleAddKlasifikasi = () => {
@@ -214,6 +290,17 @@ export default function PengaturanView({
           }`}
         >
           <Building className="w-4 h-4" /> Identitas Madrasah
+        </button>
+
+        <button
+          onClick={() => setActiveTab('kop')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            activeTab === 'kop'
+              ? 'bg-[#023126] text-amber-300 border border-amber-400/60 shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <LayoutTemplate className="w-4 h-4" /> Kop Surat
         </button>
 
         <button
@@ -464,7 +551,314 @@ export default function PengaturanView({
         </form>
       )}
 
-      {/* TAB 2: FORMAT PENOMORAN SURAT */}
+      {/* TAB 2: KUSTOMISASI KOP SURAT */}
+      {activeTab === 'kop' && (
+        <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 p-6 space-y-6 text-xs border-t-2 border-t-amber-500">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Kustomisasi Kop Surat Resmi Madrasah</h3>
+              <p className="text-slate-500 text-[11px]">
+                Atur teks baris, logo kiri/kanan, ukuran, warna judul, dan garis pemisah kop untuk seluruh cetakan buku agenda, disposisi, dan pengesahan surat.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleSyncKopFromIdentitas}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <RefreshCcw className="w-3.5 h-3.5" /> Isi dari Identitas
+              </button>
+              <button
+                type="button"
+                onClick={handleResetKopDefault}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset Standar
+              </button>
+              {canEdit && (
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" /> Simpan Kop Surat
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Live Preview */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Pratinjau Langsung Kop Surat
+            </span>
+            <div className="p-6 sm:p-8 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto">
+              <div className="bg-white p-6 rounded-lg border border-slate-300 shadow-xs max-w-4xl mx-auto">
+                <MadrasahKop settings={formData} subTitle="CONTOH JUDUL DOKUMEN / BUKU AGENDA" />
+              </div>
+            </div>
+          </div>
+
+          {/* Text & Style Editor Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Teks Baris Kop Surat */}
+            <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs">Susunan Teks Baris Kop Surat</h4>
+                <p className="text-[11px] text-slate-500">Kosongkan kolom tertentu jika baris tersebut tidak ingin ditampilkan pada kop.</p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 1 (Lembaga / Yayasan Naungan)</label>
+                <input
+                  type="text"
+                  value={kopData.baris1Instansi}
+                  onChange={(e) => updateKop({ baris1Instansi: e.target.value })}
+                  placeholder="Contoh: Lembaga Pendidikan Ma'arif NU Kabupaten Temanggung"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 2 (Nama Utama Madrasah)</label>
+                <input
+                  type="text"
+                  value={kopData.baris2Judul}
+                  onChange={(e) => updateKop({ baris2Judul: e.target.value })}
+                  placeholder={formData.namaMadrasah}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 3 (Status Akreditasi / NSM / NPSN)</label>
+                <input
+                  type="text"
+                  value={kopData.baris3Status}
+                  onChange={(e) => updateKop({ baris3Status: e.target.value })}
+                  placeholder='Contoh: STATUS: TERAKREDITASI "A" · NSM: ... · NPSN: ...'
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 4 (Alamat Lengkap)</label>
+                <input
+                  type="text"
+                  value={kopData.baris4Alamat}
+                  onChange={(e) => updateKop({ baris4Alamat: e.target.value })}
+                  placeholder="Alamat lengkap madrasah..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 5 (Telepon / Email / Website)</label>
+                <input
+                  type="text"
+                  value={kopData.baris5Kontak}
+                  onChange={(e) => updateKop({ baris5Kontak: e.target.value })}
+                  placeholder="Telp · Email · Website..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Baris 6 (Tambahan / Motto Opsional)</label>
+                <input
+                  type="text"
+                  value={kopData.baris6Tambahan || ''}
+                  onChange={(e) => updateKop({ baris6Tambahan: e.target.value })}
+                  placeholder="Opsional, misal: SK Kemenkumham / Moto Madrasah"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Right: Tata Letak, Logo & Gaya Garis */}
+            <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs">Pengaturan Logo, Warna &amp; Garis Kop</h4>
+                <p className="text-[11px] text-slate-500">Sesuaikan posisi logo, perataan teks, dan gaya garis pemisah kop.</p>
+              </div>
+
+              {/* Show Logo Toggle & Alignment */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">Tampilkan Logo</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={kopData.tampilkanLogo}
+                      onChange={(e) => updateKop({ tampilkanLogo: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-700" />
+                  </label>
+                </div>
+
+                <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-700 pl-1">Perataan Teks</span>
+                  <div className="inline-flex bg-slate-100 p-0.5 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => updateKop({ perataanTeks: 'center' })}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        kopData.perataanTeks === 'center' ? 'bg-[#023126] text-amber-300' : 'text-slate-600'
+                      }`}
+                    >
+                      <AlignCenter className="w-3 h-3" /> Tengah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateKop({ perataanTeks: 'left' })}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        kopData.perataanTeks === 'left' ? 'bg-[#023126] text-amber-300' : 'text-slate-600'
+                      }`}
+                    >
+                      <AlignLeft className="w-3 h-3" /> Kiri
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logo Position & Size */}
+              {kopData.tampilkanLogo && (
+                <div className="space-y-3 p-3 bg-white rounded-lg border border-slate-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Posisi Logo</label>
+                      <select
+                        value={kopData.posisiLogo}
+                        onChange={(e) => updateKop({ posisiLogo: e.target.value as KopSuratConfig['posisiLogo'] })}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white"
+                      >
+                        <option value="left">Logo di Kiri</option>
+                        <option value="both">2 Logo (Kiri &amp; Kanan)</option>
+                        <option value="right">Logo di Kanan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Ukuran Logo</label>
+                      <select
+                        value={kopData.ukuranLogo}
+                        onChange={(e) => updateKop({ ukuranLogo: e.target.value as KopSuratConfig['ukuranLogo'] })}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white"
+                      >
+                        <option value="sm">Kecil (Ringkas)</option>
+                        <option value="md">Sedang (Standar)</option>
+                        <option value="lg">Besar</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Primary Logo URL / Upload */}
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Logo Utama (URL atau Unggah Gambar)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.logoUrl}
+                        onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+                        placeholder="https://... atau unggah gambar"
+                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-[11px]"
+                      />
+                      <label className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg font-semibold cursor-pointer shrink-0">
+                        <ImageIcon className="w-3.5 h-3.5" /> Unggah
+                        <input type="file" accept="image/*" onChange={(e) => handleUploadLogoFile(e, 'left')} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Secondary Logo URL / Upload (when posisiLogo is 'both') */}
+                  {kopData.posisiLogo === 'both' && (
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Logo Kanan / Kedua (Opsional — kosongkan untuk samakan dengan Logo Utama)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={kopData.logoKananUrl || ''}
+                          onChange={(e) => updateKop({ logoKananUrl: e.target.value })}
+                          placeholder="URL Logo Kanan (misal: Logo Ma'arif / Kemenag)"
+                          className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-[11px]"
+                        />
+                        <label className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg font-semibold cursor-pointer shrink-0">
+                          <ImageIcon className="w-3.5 h-3.5" /> Unggah
+                          <input type="file" accept="image/*" onChange={(e) => handleUploadLogoFile(e, 'right')} className="hidden" />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Title Color & Separator Style */}
+              <div className="space-y-3 p-3 bg-white rounded-lg border border-slate-200">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">Warna Judul Madrasah</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'emerald' as const, label: 'Hijau Emerald', dot: 'bg-emerald-800' },
+                      { id: 'slate' as const, label: 'Hitam Resmi', dot: 'bg-slate-900' },
+                      { id: 'green' as const, label: 'Hijau NU', dot: 'bg-green-800' },
+                      { id: 'blue' as const, label: 'Biru Tua', dot: 'bg-blue-900' },
+                      { id: 'amber' as const, label: 'Emas Tua', dot: 'bg-amber-800' },
+                    ].map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => updateKop({ warnaJudul: c.id })}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
+                          kopData.warnaJudul === c.id
+                            ? 'border-emerald-700 bg-emerald-50 text-emerald-950'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`w-3 h-3 rounded-full ${c.dot}`} />
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Gaya Garis Pembatas</label>
+                    <select
+                      value={kopData.gayaGarisBawah}
+                      onChange={(e) => updateKop({ gayaGarisBawah: e.target.value as KopSuratConfig['gayaGarisBawah'] })}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    >
+                      <option value="double">Garis Ganda (Resmi)</option>
+                      <option value="thick-thin">Tebal - Tipis (Klasik Dinas)</option>
+                      <option value="solid">Garis Tunggal Tebal</option>
+                      <option value="none">Tanpa Garis</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Warna Garis Pembatas</label>
+                    <select
+                      value={kopData.warnaGarisBawah}
+                      onChange={(e) => updateKop({ warnaGarisBawah: e.target.value as KopSuratConfig['warnaGarisBawah'] })}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    >
+                      <option value="slate">Hitam Resmi</option>
+                      <option value="emerald">Hijau Emerald</option>
+                      <option value="green">Hijau NU</option>
+                      <option value="blue">Biru Tua</option>
+                      <option value="amber">Emas Tua</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* TAB 3: FORMAT PENOMORAN SURAT */}
       {activeTab === 'penomoran' && (
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6 text-xs">
           <div className="pb-3 border-b border-slate-100 flex items-center justify-between">

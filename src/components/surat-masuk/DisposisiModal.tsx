@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { SuratMasuk, Disposisi, UserProfile } from '../../types';
-import { X, SendHorizontal, Clock, CheckSquare } from 'lucide-react';
+import { X, SendHorizontal, Clock, CheckSquare, Plus } from 'lucide-react';
 
 interface DisposisiModalProps {
   isOpen: boolean;
@@ -11,9 +11,9 @@ interface DisposisiModalProps {
 }
 
 const TUJUAN_OPTIONS = [
-  'Waka Kurikulum (Nurul Hidayah, S.Pd.I)',
+  'Waka Kurikulum',
   'Waka Kesiswaan & Ekstra',
-  'Operator Madrasah (Siti Aminah, S.Pd.)',
+  'Operator Madrasah',
   'Bendahara Madrasah / BOS',
   'Tim Sarpras & Kebersihan',
   'Dewan Guru Kelas I - VI',
@@ -41,6 +41,8 @@ export default function DisposisiModal({
   const [batasWaktu, setBatasWaktu] = useState('');
   const [selectedTujuan, setSelectedTujuan] = useState<string[]>([]);
   const [selectedInstruksi, setSelectedInstruksi] = useState<string[]>([]);
+  const [manualTujuanInput, setManualTujuanInput] = useState('');
+  const [manualInstruksiInput, setManualInstruksiInput] = useState('');
   const [catatanKepala, setCatatanKepala] = useState('');
 
   const wasOpenRef = useRef(false);
@@ -59,6 +61,9 @@ export default function DisposisiModal({
     wasOpenRef.current = true;
     prevSuratIdRef.current = surat.id;
 
+    setManualTujuanInput('');
+    setManualInstruksiInput('');
+
     if (surat.disposisi) {
       setSifat(surat.disposisi.sifat);
       setBatasWaktu(surat.disposisi.batasWaktu || '');
@@ -68,7 +73,7 @@ export default function DisposisiModal({
     } else {
       setSifat('Segera');
       setBatasWaktu('');
-      setSelectedTujuan(['Waka Kurikulum (Nurul Hidayah, S.Pd.I)']);
+      setSelectedTujuan([]);
       setSelectedInstruksi(['Tindak lanjuti & selesaikan segera']);
       setCatatanKepala('');
     }
@@ -88,18 +93,51 @@ export default function DisposisiModal({
     );
   };
 
+  const handleAddManualTujuan = () => {
+    const trimmed = manualTujuanInput.trim();
+    if (!trimmed) return;
+    if (!selectedTujuan.includes(trimmed)) {
+      setSelectedTujuan((prev) => [...prev, trimmed]);
+    }
+    setManualTujuanInput('');
+  };
+
+  const handleAddManualInstruksi = () => {
+    const trimmed = manualInstruksiInput.trim();
+    if (!trimmed) return;
+    if (!selectedInstruksi.includes(trimmed)) {
+      setSelectedInstruksi((prev) => [...prev, trimmed]);
+    }
+    setManualInstruksiInput('');
+  };
+
+  const customTujuanList = selectedTujuan.filter((t) => !TUJUAN_OPTIONS.includes(t));
+  const customInstruksiList = selectedInstruksi.filter((i) => !INSTRUKSI_OPTIONS.includes(i));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedTujuan.length === 0) {
-      alert('Pilih minimal satu penerima disposisi.');
+    const trimmedTujuan = manualTujuanInput.trim();
+    const finalTujuan =
+      trimmedTujuan && !selectedTujuan.includes(trimmedTujuan)
+        ? [...selectedTujuan, trimmedTujuan]
+        : selectedTujuan;
+
+    const trimmedInstruksi = manualInstruksiInput.trim();
+    const finalInstruksi =
+      trimmedInstruksi && !selectedInstruksi.includes(trimmedInstruksi)
+        ? [...selectedInstruksi, trimmedInstruksi]
+        : selectedInstruksi;
+
+    if (finalTujuan.length === 0) {
+      alert('Pilih atau ketikkan minimal satu penerima disposisi.');
       return;
     }
     onSave(surat.id, {
       tanggalDisposisi: new Date().toISOString().split('T')[0],
       sifat,
       batasWaktu: batasWaktu || undefined,
-      tujuanDisposisi: selectedTujuan,
-      instruksi: selectedInstruksi,
+      tujuanDisposisi: finalTujuan,
+      instruksi: finalInstruksi,
       catatanKepala: catatanKepala.trim(),
       diberikanOleh: currentUser.name,
       status: 'Menunggu',
@@ -121,8 +159,9 @@ export default function DisposisiModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            className="p-1.5 text-amber-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -132,11 +171,11 @@ export default function DisposisiModal({
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
           {/* Info Surat */}
           <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <span className="text-slate-500">Nomor & Tanggal Surat:</span>
               <span className="font-semibold text-slate-800">{surat.nomorSuratPengirim} ({surat.tanggalSurat})</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <span className="text-slate-500">Pengirim Surat:</span>
               <span className="font-medium text-slate-800">{surat.pengirim}</span>
             </div>
@@ -174,9 +213,9 @@ export default function DisposisiModal({
           </div>
 
           {/* Diteruskan Kepada */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">
-              Diteruskan Kepada (Pilih Pejabat / Staf Madrasah):
+          <div className="space-y-2.5">
+            <label className="block text-xs font-semibold text-slate-700">
+              Diteruskan Kepada (Pilih Preset atau Tambah Manual):
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {TUJUAN_OPTIONS.map((item) => {
@@ -186,7 +225,7 @@ export default function DisposisiModal({
                     key={item}
                     type="button"
                     onClick={() => toggleTujuan(item)}
-                    className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-colors ${
+                    className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-colors cursor-pointer ${
                       checked
                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-medium'
                         : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -198,11 +237,58 @@ export default function DisposisiModal({
                 );
               })}
             </div>
+
+            {/* Custom / Manual Recipients Chips */}
+            {customTujuanList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {customTujuanList.map((customItem) => (
+                  <span
+                    key={customItem}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-600 bg-emerald-50 text-emerald-900 text-xs font-medium"
+                  >
+                    <span>{customItem}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleTujuan(customItem)}
+                      title="Hapus penerima ini"
+                      className="text-emerald-700 hover:text-red-600 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Manual Input Penerima Disposisi */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualTujuanInput}
+                onChange={(e) => setManualTujuanInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddManualTujuan();
+                  }
+                }}
+                placeholder="Input manual penerima (misal: Wali Kelas V, Komite Madrasah, Nama Guru)..."
+                className="flex-1 text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleAddManualTujuan}
+                disabled={!manualTujuanInput.trim()}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 border border-emerald-300 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            </div>
           </div>
 
           {/* Petunjuk / Instruksi */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">
+          <div className="space-y-2.5">
+            <label className="block text-xs font-semibold text-slate-700">
               Petunjuk / Instruksi Kepala Madrasah:
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -213,7 +299,7 @@ export default function DisposisiModal({
                     key={item}
                     type="button"
                     onClick={() => toggleInstruksi(item)}
-                    className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-colors ${
+                    className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-colors cursor-pointer ${
                       checked
                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-medium'
                         : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -224,6 +310,53 @@ export default function DisposisiModal({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Custom / Manual Instructions Chips */}
+            {customInstruksiList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {customInstruksiList.map((customItem) => (
+                  <span
+                    key={customItem}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-600 bg-emerald-50 text-emerald-900 text-xs font-medium"
+                  >
+                    <span>{customItem}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleInstruksi(customItem)}
+                      title="Hapus instruksi ini"
+                      className="text-emerald-700 hover:text-red-600 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Manual Input Instruksi */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualInstruksiInput}
+                onChange={(e) => setManualInstruksiInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddManualInstruksi();
+                  }
+                }}
+                placeholder="Input manual instruksi lain jika belum tersedia di preset..."
+                className="flex-1 text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleAddManualInstruksi}
+                disabled={!manualInstruksiInput.trim()}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 border border-emerald-300 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
             </div>
           </div>
 
@@ -236,7 +369,7 @@ export default function DisposisiModal({
               rows={3}
               value={catatanKepala}
               onChange={(e) => setCatatanKepala(e.target.value)}
-              placeholder="Contoh: Mohon koordinasikan dengan pihak komite terkait ketersediaan tempat wudhu santri..."
+              placeholder="Contoh: Mohon koordinasikan dengan pihak terkait dan laporkan hasilnya..."
               className="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
           </div>
@@ -246,7 +379,7 @@ export default function DisposisiModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
             >
               Batal
             </button>

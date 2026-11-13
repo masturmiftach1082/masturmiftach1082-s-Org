@@ -186,6 +186,10 @@ class StorageService {
       nipOperatorMadrasah: saved.nipOperatorMadrasah || initialMadrasahSettings.nipOperatorMadrasah,
       formatPenomoranSK: saved.formatPenomoranSK || initialMadrasahSettings.formatPenomoranSK || 'XXX Tahun YYYY',
       adminPassword: saved.adminPassword || initialMadrasahSettings.adminPassword || 'admin123',
+      kopSurat: {
+        ...initialMadrasahSettings.kopSurat!,
+        ...(saved.kopSurat || {}),
+      },
       supabaseConfig: {
         ...initialMadrasahSettings.supabaseConfig,
         ...(saved.supabaseConfig || {}),
