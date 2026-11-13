@@ -25,9 +25,9 @@ export default function PrintDisposisi({
   const disp = surat.disposisi;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto preview-scrollbar">
       {/* Container */}
-      <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden my-8">
+      <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden my-auto">
         {/* Floating Print Action Bar (Hidden on print) */}
         <div className="no-print flex items-center justify-between px-6 py-3.5 bg-slate-900 text-white">
           <div className="flex items-center gap-2">
