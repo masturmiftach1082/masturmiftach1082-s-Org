@@ -451,6 +451,14 @@ export default function App() {
               onEdit={handleEditSuratMasuk}
               onDelete={handleDeleteSuratMasuk}
               onViewDetail={handleViewSuratMasukDetail}
+              onViewDocument={(s) => {
+                if (s.fileDoc) {
+                  handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratPengirim, {
+                    onEditBerkas: () => handleOpenEditBerkasSuratMasuk(s),
+                    onEditData: () => handleEditSuratMasuk(s),
+                  });
+                }
+              }}
               onOpenDisposisi={handleOpenDisposisi}
               onPrintDisposisi={handlePrintDisposisi}
               onPrintAgendaBook={() => setCurrentTab('laporan')}
@@ -468,6 +476,14 @@ export default function App() {
               onEdit={handleEditSuratKeluar}
               onDelete={handleDeleteSuratKeluar}
               onViewDetail={handleViewSuratKeluarDetail}
+              onViewDocument={(s) => {
+                if (s.fileDoc) {
+                  handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratLengkap, {
+                    onEditBerkas: () => handleOpenEditBerkasSuratKeluar(s),
+                    onEditData: () => handleEditSuratKeluar(s),
+                  });
+                }
+              }}
               onPrintAgendaBook={() => setCurrentTab('laporan')}
               onEditBerkas={handleOpenEditBerkasSuratKeluar}
               onOpenLoginModal={handleOpenLoginModal}

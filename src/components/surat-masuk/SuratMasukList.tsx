@@ -25,6 +25,7 @@ interface SuratMasukListProps {
   onEdit: (surat: SuratMasuk) => void;
   onDelete: (id: string) => void;
   onViewDetail: (surat: SuratMasuk) => void;
+  onViewDocument?: (surat: SuratMasuk) => void;
   onOpenDisposisi: (surat: SuratMasuk) => void;
   onPrintDisposisi: (surat: SuratMasuk) => void;
   onPrintAgendaBook: () => void;
@@ -40,6 +41,7 @@ export default function SuratMasukList({
   onEdit,
   onDelete,
   onViewDetail,
+  onViewDocument,
   onOpenDisposisi,
   onPrintDisposisi,
   onPrintAgendaBook,
@@ -233,7 +235,7 @@ export default function SuratMasukList({
                 <th className="py-3 px-4 w-28">Status & Sifat</th>
                 <th className="py-3 px-4 w-24 text-center">Disposisi</th>
                 <th className="py-3 px-4 w-20 text-center">Arsip</th>
-                <th className="py-3 px-4 w-48 text-right">Aksi</th>
+                <th className="py-3 px-4 w-56 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -304,11 +306,11 @@ export default function SuratMasukList({
                       {surat.fileDoc ? (
                         <button
                           type="button"
-                          onClick={() => (onEditBerkas ? onEditBerkas(surat) : onViewDetail(surat))}
-                          title={`Dokumen: ${surat.fileDoc.fileName} - Klik untuk buka / edit berkas`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-amber-100 hover:text-amber-950 hover:border-amber-300 transition-colors cursor-pointer group/file"
+                          onClick={() => (onViewDocument ? onViewDocument(surat) : onViewDetail(surat))}
+                          title={`Pratinjau dokumen: ${surat.fileDoc.fileName}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors cursor-pointer"
                         >
-                          <HardDrive className="w-3 h-3 text-emerald-700 group-hover/file:text-amber-800" />
+                          <HardDrive className="w-3 h-3 text-emerald-700" />
                           <span>Ada</span>
                         </button>
                       ) : canManage && onEditBerkas ? (
@@ -327,13 +329,24 @@ export default function SuratMasukList({
 
                     {/* Actions */}
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        {surat.fileDoc && onViewDocument && (
+                          <button
+                            type="button"
+                            onClick={() => onViewDocument(surat)}
+                            title={`Pratinjau Dokumen (${surat.fileDoc.fileName})`}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3" /> Pratinjau
+                          </button>
+                        )}
                         <button
+                          type="button"
                           onClick={() => onViewDetail(surat)}
-                          title="Lihat Detail"
+                          title="Lihat Detail Surat"
                           className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5" />
                         </button>
                         {canManage && (
                           <>
