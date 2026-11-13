@@ -50,6 +50,35 @@ export default function PengaturanView({
   const [syncingData, setSyncingData] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
+  // Manual next sequence counter state
+  const currentYear = new Date().getFullYear();
+  const [seqYear, setSeqYear] = useState<number>(currentYear);
+  const [nextSeqMasuk, setNextSeqMasuk] = useState<number>(() =>
+    parseInt(storageService.getNextAgendaSuratMasuk(currentYear), 10) || 1
+  );
+  const [nextSeqKeluar, setNextSeqKeluar] = useState<number>(
+    () => storageService.getNextSuratKeluarInfo(currentYear, '01', 'PP.00').nomorUrut || 1
+  );
+  const [nextSeqSK, setNextSeqSK] = useState<number>(
+    () => storageService.getNextSKInfo(currentYear, '01').nomorUrut || 1
+  );
+  const [seqSavedNotice, setSeqSavedNotice] = useState(false);
+
+  const handleSeqYearChange = (yr: number) => {
+    setSeqYear(yr);
+    setNextSeqMasuk(parseInt(storageService.getNextAgendaSuratMasuk(yr), 10) || 1);
+    setNextSeqKeluar(storageService.getNextSuratKeluarInfo(yr, '01', 'PP.00').nomorUrut || 1);
+    setNextSeqSK(storageService.getNextSKInfo(yr, '01').nomorUrut || 1);
+  };
+
+  const handleSaveSequences = () => {
+    storageService.setManualNextSequence('masuk', seqYear, Math.max(1, nextSeqMasuk), currentUser);
+    storageService.setManualNextSequence('keluar', seqYear, Math.max(1, nextSeqKeluar), currentUser);
+    storageService.setManualNextSequence('sk', seqYear, Math.max(1, nextSeqSK), currentUser);
+    setSeqSavedNotice(true);
+    setTimeout(() => setSeqSavedNotice(false), 3000);
+  };
+
   const canEdit = currentUser.role === 'admin';
 
   const handleTestSupabase = async () => {
@@ -547,6 +576,100 @@ export default function PengaturanView({
               <p className="text-[10px] text-slate-500">
                 Fitur ini aktif secara bawaan untuk mempermudah pencatatan surat susulan, penomoran khusus yayasan LP Ma'arif, atau sinkronisasi dengan buku kendali fisik madrasah.
               </p>
+            </div>
+
+            {/* Penyesuaian Nomor Urut Berikutnya (Global Counter) */}
+            <div className="p-4 bg-white rounded-xl border border-emerald-200 space-y-3 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h5 className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+                    <RefreshCcw className="w-4 h-4 text-emerald-700" /> Atur Nomor Urut Awal / Berikutnya (Tahun {seqYear})
+                  </h5>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tentukan angka nomor urut otomatis berikutnya jika madrasah melanjutkan penomoran dari buku agenda fisik.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="text-[11px] font-semibold text-slate-600">Tahun:</label>
+                  <input
+                    type="number"
+                    value={seqYear}
+                    onChange={(e) => handleSeqYearChange(parseInt(e.target.value, 10) || currentYear)}
+                    className="w-20 px-2 py-1 border border-slate-300 rounded text-xs font-mono font-bold text-center"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Urut Berikutnya: Surat Masuk
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={nextSeqMasuk}
+                    onChange={(e) => setNextSeqMasuk(parseInt(e.target.value, 10) || 1)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-emerald-950 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block font-mono">
+                    Pratinjau: #{String(Math.max(1, nextSeqMasuk)).padStart(3, '0')}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Urut Berikutnya: Surat Keluar
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={nextSeqKeluar}
+                    onChange={(e) => setNextSeqKeluar(parseInt(e.target.value, 10) || 1)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-emerald-950 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block font-mono">
+                    Pratinjau: {String(Math.max(1, nextSeqKeluar)).padStart(3, '0')}/{formData.kodeMadrasah}/...
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Urut Berikutnya: Surat Keputusan
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={nextSeqSK}
+                    onChange={(e) => setNextSeqSK(parseInt(e.target.value, 10) || 1)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-mono font-bold text-emerald-950 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block font-mono">
+                    Pratinjau: {(formData.formatPenomoranSK || 'XXX Tahun YYYY').replace(/XXX/g, String(Math.max(1, nextSeqSK)).padStart(3, '0')).replace(/YYYY/g, String(seqYear))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                {seqSavedNotice ? (
+                  <span className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Nomor urut berikutnya berhasil diterapkan!
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">
+                    Anda juga dapat mengubah Nomor Urut secara manual per surat melalui mode Manual saat tambah/edit surat.
+                  </span>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleSaveSequences}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" /> Terapkan Nomor Urut
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

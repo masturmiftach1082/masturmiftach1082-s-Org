@@ -35,6 +35,7 @@ export default function SuratKeputusanModal({
   const [modePenomoran, setModePenomoran] = useState<'otomatis' | 'manual'>('otomatis');
   const [manualNomorSK, setManualNomorSK] = useState('');
   const [manualNomorUrut, setManualNomorUrut] = useState<number | ''>('');
+  const [syncNomorWithUrut, setSyncNomorWithUrut] = useState(true);
 
   // File upload state
   const [fileName, setFileName] = useState('');
@@ -47,17 +48,21 @@ export default function SuratKeputusanModal({
   const [isFileRemoved, setIsFileRemoved] = useState(false);
   const [fileDataBase64, setFileDataBase64] = useState<string | undefined>(undefined);
 
-  // Real-time generated SK number
-  const generatedSKNumber = useMemo(() => {
+  // Real-time generated SK number & sequence info
+  const generatedSKInfo = useMemo(() => {
     if (isEdit && skToEdit) {
-      return skToEdit.nomorSK;
+      return {
+        nomorUrut: skToEdit.nomorUrut,
+        nomorSK: skToEdit.nomorSK,
+      };
     }
     const d = new Date(tanggalSK || new Date().toISOString().split('T')[0]);
     const year = d.getFullYear() || 2026;
     const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-    const info = storageService.getNextSKInfo(year, monthStr);
-    return info.nomorSK;
+    return storageService.getNextSKInfo(year, monthStr);
   }, [isEdit, skToEdit, tanggalSK]);
+
+  const generatedSKNumber = generatedSKInfo.nomorSK;
 
   useEffect(() => {
     if (skToEdit) {
@@ -108,6 +113,7 @@ export default function SuratKeputusanModal({
       setManualNomorSK('');
       setManualNomorUrut('');
       setModePenomoran('otomatis');
+      setSyncNomorWithUrut(true);
       setIsFileRemoved(false);
     }
   }, [skToEdit, isOpen, settings]);
@@ -167,9 +173,29 @@ export default function SuratKeputusanModal({
 
   const handleCopyGeneratedToManual = () => {
     setManualNomorSK(generatedSKNumber);
-    const match = generatedSKNumber.match(/^(\d+)/);
-    if (match) {
-      setManualNomorUrut(parseInt(match[1], 10));
+    setManualNomorUrut(generatedSKInfo.nomorUrut);
+  };
+
+  const handleManualUrutChange = (rawVal: string) => {
+    if (rawVal === '') {
+      setManualNomorUrut('');
+      return;
+    }
+    const parsed = parseInt(rawVal, 10);
+    if (isNaN(parsed)) return;
+    setManualNomorUrut(parsed);
+
+    if (syncNomorWithUrut && parsed >= 0) {
+      const padded = String(parsed).padStart(3, '0');
+      const d = new Date(tanggalSK || new Date().toISOString().split('T')[0]);
+      const year = d.getFullYear() || 2026;
+      const base = manualNomorSK || generatedSKNumber;
+      if (/^\d+/.test(base)) {
+        setManualNomorSK(base.replace(/^\d+/, padded));
+      } else {
+        const template = settings.formatPenomoranSK || 'XXX Tahun YYYY';
+        setManualNomorSK(template.replace(/XXX/g, padded).replace(/YYYY/g, String(year)));
+      }
     }
   };
 
@@ -305,6 +331,9 @@ export default function SuratKeputusanModal({
                     if (!manualNomorSK) {
                       setManualNomorSK(generatedSKNumber);
                     }
+                    if (manualNomorUrut === '') {
+                      setManualNomorUrut(generatedSKInfo.nomorUrut);
+                    }
                   }}
                   className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                     modePenomoran === 'manual'
@@ -312,7 +341,7 @@ export default function SuratKeputusanModal({
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Manual (Input Bebas)
+                  Manual (No. Urut &amp; No. SK)
                 </button>
               </div>
             </div>
@@ -324,9 +353,14 @@ export default function SuratKeputusanModal({
                   <span className="text-[10px] text-emerald-800 font-semibold block uppercase">
                     Nomor SK Terkunci Format Resmi:
                   </span>
-                  <span className="font-mono text-sm md:text-base font-extrabold text-emerald-950 tracking-wide">
-                    {generatedSKNumber}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300">
+                      Urut #{String(generatedSKInfo.nomorUrut).padStart(3, '0')}
+                    </span>
+                    <span className="font-mono text-sm md:text-base font-extrabold text-emerald-950 tracking-wide">
+                      {generatedSKNumber}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">
@@ -340,29 +374,46 @@ export default function SuratKeputusanModal({
                     }}
                     className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
                   >
-                    Edit Manual
+                    Atur Manual
                   </button>
                 </div>
               </div>
             ) : (
               /* Mode Manual Input View */
               <div className="p-3.5 bg-white rounded-lg border border-amber-300 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-amber-950 flex items-center gap-1">
-                    <span>Masukkan Nomor SK Bebas / Kustom:</span>
-                  </label>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-amber-950">
+                    Pengaturan Manual Nomor Urut &amp; Nomor SK
+                  </span>
                   <button
                     type="button"
                     onClick={handleCopyGeneratedToManual}
-                    className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition-colors cursor-pointer"
+                    className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition-colors cursor-pointer shrink-0"
                     title="Gunakan format otomatis sebagai draf"
                   >
-                    Terapkan Nomor Otomatis
+                    Terapkan Nilai Otomatis
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Nomor Urut SK *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={manualNomorUrut}
+                      onChange={(e) => handleManualUrutChange(e.target.value)}
+                      placeholder="1"
+                      className="w-full text-xs font-mono font-bold px-3 py-2 border-2 border-amber-400 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 bg-amber-50/20"
+                    />
+                  </div>
                   <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Nomor SK Lengkap *
+                    </label>
                     <input
                       type="text"
                       required
@@ -372,19 +423,22 @@ export default function SuratKeputusanModal({
                       className="w-full text-xs font-mono font-bold px-3 py-2 border-2 border-amber-400 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 bg-amber-50/20"
                     />
                   </div>
-                  <div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 cursor-pointer select-none">
                     <input
-                      type="number"
-                      value={manualNomorUrut}
-                      onChange={(e) => setManualNomorUrut(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-                      placeholder="No Urut (opsional)"
-                      className="w-full text-xs font-mono px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      type="checkbox"
+                      checked={syncNomorWithUrut}
+                      onChange={(e) => setSyncNomorWithUrut(e.target.checked)}
+                      className="rounded border-amber-400 text-emerald-700 focus:ring-emerald-500"
                     />
-                  </div>
+                    <span>Otomatis sesuaikan angka awalan Nomor SK saat Nomor Urut diubah</span>
+                  </label>
                 </div>
 
                 <p className="text-[10px] text-amber-800 leading-tight">
-                  💡 <strong>Mode Manual Aktif:</strong> Anda dapat memasukkan nomor SK dengan format penomoran khusus yayasan, madrasah, atau nomor SK fisik yang telah disahkan sebelumnya.
+                  💡 <strong>Mode Manual Aktif:</strong> Anda dapat mengatur Nomor Urut SK dan Nomor SK secara manual sesuai kebutuhan yayasan, madrasah, atau nomor arsip fisik sebelumnya.
                 </p>
               </div>
             )}

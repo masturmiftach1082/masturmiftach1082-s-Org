@@ -366,6 +366,35 @@ class StorageService {
     }
   }
 
+  /**
+   * Manually set the next automatic sequence number for a given year
+   */
+  setManualNextSequence(
+    type: 'masuk' | 'keluar' | 'sk',
+    year: number,
+    nextSequenceNumber: number,
+    user?: UserProfile
+  ): void {
+    const lastUsed = Math.max(0, Math.floor(nextSequenceNumber) - 1);
+    const keyPrefix =
+      type === 'masuk'
+        ? STORAGE_KEYS.COUNTER_MASUK
+        : type === 'keluar'
+        ? STORAGE_KEYS.COUNTER_KELUAR
+        : STORAGE_KEYS.COUNTER_SK;
+    this.set(`${keyPrefix}${year}`, lastUsed);
+    if (user) {
+      const label = type === 'masuk' ? 'Surat Masuk' : type === 'keluar' ? 'Surat Keluar' : 'Surat Keputusan';
+      this.logActivity(
+        user,
+        'Penyesuaian Nomor Urut',
+        'Pengaturan',
+        undefined,
+        `Mengatur nomor urut berikutnya ${label} tahun ${year} ke #${String(Math.max(1, Math.floor(nextSequenceNumber))).padStart(3, '0')}`
+      );
+    }
+  }
+
   // --- CRUD: SURAT MASUK ---
   getSuratMasuk(): SuratMasuk[] {
     return this.get<SuratMasuk[]>(STORAGE_KEYS.SURAT_MASUK, initialSuratMasuk);
@@ -574,7 +603,10 @@ class StorageService {
 
     const isManual = Boolean(item.customNomorSurat?.trim());
     const finalNomorLengkap = isManual ? item.customNomorSurat!.trim() : nextInfo.nomorLengkap;
-    const finalNomorUrut = item.customNomorUrut || nextInfo.nomorUrut;
+    const finalNomorUrut =
+      item.customNomorUrut !== undefined && !isNaN(item.customNomorUrut)
+        ? item.customNomorUrut
+        : nextInfo.nomorUrut;
 
     const newItem: SuratKeluar = {
       ...item,
@@ -728,7 +760,10 @@ class StorageService {
 
     const isManual = Boolean(item.customNomorSK?.trim());
     const finalNomorSK = isManual ? item.customNomorSK!.trim() : nextInfo.nomorSK;
-    const finalNomorUrut = item.customNomorUrut || nextInfo.nomorUrut;
+    const finalNomorUrut =
+      item.customNomorUrut !== undefined && !isNaN(item.customNomorUrut)
+        ? item.customNomorUrut
+        : nextInfo.nomorUrut;
 
     const newItem: SuratKeputusan = {
       ...item,

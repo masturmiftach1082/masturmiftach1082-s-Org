@@ -40,6 +40,7 @@ export default function SuratKeluarModal({
   const [modePenomoran, setModePenomoran] = useState<'otomatis' | 'manual'>('otomatis');
   const [manualNomorSurat, setManualNomorSurat] = useState('');
   const [manualNomorUrut, setManualNomorUrut] = useState<number | ''>('');
+  const [syncNomorWithUrut, setSyncNomorWithUrut] = useState(true);
 
   // File upload state
   const [fileName, setFileName] = useState('');
@@ -52,17 +53,21 @@ export default function SuratKeluarModal({
   const [isFileRemoved, setIsFileRemoved] = useState(false);
   const [fileDataBase64, setFileDataBase64] = useState<string | undefined>(undefined);
 
-  // Real-time generated number preview
-  const generatedNumber = useMemo(() => {
+  // Real-time generated number & sequence preview
+  const generatedInfo = useMemo(() => {
     if (isEdit && suratToEdit) {
-      return suratToEdit.nomorSuratLengkap;
+      return {
+        nomorUrut: suratToEdit.nomorUrut,
+        nomorLengkap: suratToEdit.nomorSuratLengkap,
+      };
     }
     const d = new Date(tanggalSurat || new Date().toISOString().split('T')[0]);
     const year = d.getFullYear() || 2026;
     const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-    const info = storageService.getNextSuratKeluarInfo(year, monthStr, kodeKlasifikasi);
-    return info.nomorLengkap;
+    return storageService.getNextSuratKeluarInfo(year, monthStr, kodeKlasifikasi);
   }, [isEdit, suratToEdit, tanggalSurat, kodeKlasifikasi]);
+
+  const generatedNumber = generatedInfo.nomorLengkap;
 
   useEffect(() => {
     if (suratToEdit) {
@@ -121,6 +126,7 @@ export default function SuratKeluarModal({
       setManualNomorSurat('');
       setManualNomorUrut('');
       setModePenomoran('otomatis');
+      setSyncNomorWithUrut(true);
       setIsFileRemoved(false);
     }
   }, [suratToEdit, isOpen]);
@@ -189,9 +195,30 @@ export default function SuratKeluarModal({
 
   const handleCopyGeneratedToManual = () => {
     setManualNomorSurat(generatedNumber);
-    const match = generatedNumber.match(/^(\d+)/);
-    if (match) {
-      setManualNomorUrut(parseInt(match[1], 10));
+    setManualNomorUrut(generatedInfo.nomorUrut);
+  };
+
+  const handleManualUrutChange = (rawVal: string) => {
+    if (rawVal === '') {
+      setManualNomorUrut('');
+      return;
+    }
+    const parsed = parseInt(rawVal, 10);
+    if (isNaN(parsed)) return;
+    setManualNomorUrut(parsed);
+
+    if (syncNomorWithUrut && parsed >= 0) {
+      const padded = String(parsed).padStart(3, '0');
+      const d = new Date(tanggalSurat || new Date().toISOString().split('T')[0]);
+      const year = d.getFullYear() || 2026;
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const kodeMadrasah = settings.kodeMadrasah || 'Mis.11.23.14.14';
+      const base = manualNomorSurat || generatedNumber;
+      if (/^\d+\//.test(base)) {
+        setManualNomorSurat(base.replace(/^\d+\//, `${padded}/`));
+      } else {
+        setManualNomorSurat(`${padded}/${kodeMadrasah}/${kodeKlasifikasi}/${monthStr}/${year}`);
+      }
     }
   };
 
@@ -337,6 +364,9 @@ export default function SuratKeluarModal({
                     if (!manualNomorSurat) {
                       setManualNomorSurat(generatedNumber);
                     }
+                    if (manualNomorUrut === '') {
+                      setManualNomorUrut(generatedInfo.nomorUrut);
+                    }
                   }}
                   className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                     modePenomoran === 'manual'
@@ -344,7 +374,7 @@ export default function SuratKeluarModal({
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Manual (Input Bebas)
+                  Manual (No. Urut &amp; No. Surat)
                 </button>
               </div>
             </div>
@@ -354,11 +384,16 @@ export default function SuratKeluarModal({
               <div className="p-3 bg-white rounded-lg border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <span className="text-[10px] text-emerald-800 font-semibold block uppercase">
-                    Nomor Terkunci Sistem Sesuai Kode & Tanggal:
+                    Nomor Terkunci Sistem Sesuai Kode &amp; Tanggal:
                   </span>
-                  <span className="font-mono text-sm md:text-base font-extrabold text-emerald-950 tracking-wide">
-                    {generatedNumber}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300">
+                      Urut #{String(generatedInfo.nomorUrut).padStart(3, '0')}
+                    </span>
+                    <span className="font-mono text-sm md:text-base font-extrabold text-emerald-950 tracking-wide">
+                      {generatedNumber}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">
@@ -372,29 +407,46 @@ export default function SuratKeluarModal({
                     }}
                     className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
                   >
-                    Edit Manual
+                    Atur Manual
                   </button>
                 </div>
               </div>
             ) : (
               /* Mode Manual Input View */
               <div className="p-3.5 bg-white rounded-lg border border-amber-300 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-amber-950 flex items-center gap-1">
-                    <span>Masukkan Nomor Surat Keluar Bebas / Kustom:</span>
-                  </label>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-amber-950">
+                    Pengaturan Manual Nomor Urut &amp; Nomor Surat Keluar
+                  </span>
                   <button
                     type="button"
                     onClick={handleCopyGeneratedToManual}
-                    className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition-colors cursor-pointer"
-                    title="Gunakan format standar sebagai draf ketikan"
+                    className="text-[11px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition-colors cursor-pointer shrink-0"
+                    title="Gunakan nomor dan urutan otomatis sebagai draf ketikan"
                   >
-                    Terapkan Nomor Otomatis
+                    Terapkan Nilai Otomatis
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Nomor Urut Surat *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={manualNomorUrut}
+                      onChange={(e) => handleManualUrutChange(e.target.value)}
+                      placeholder="1"
+                      className="w-full text-xs font-mono font-bold px-3 py-2 border-2 border-amber-400 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 bg-amber-50/20"
+                    />
+                  </div>
                   <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                      Nomor Surat Lengkap *
+                    </label>
                     <input
                       type="text"
                       required
@@ -404,19 +456,22 @@ export default function SuratKeluarModal({
                       className="w-full text-xs font-mono font-bold px-3 py-2 border-2 border-amber-400 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 bg-amber-50/20"
                     />
                   </div>
-                  <div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 cursor-pointer select-none">
                     <input
-                      type="number"
-                      value={manualNomorUrut}
-                      onChange={(e) => setManualNomorUrut(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-                      placeholder="No Urut (opsional)"
-                      className="w-full text-xs font-mono px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      type="checkbox"
+                      checked={syncNomorWithUrut}
+                      onChange={(e) => setSyncNomorWithUrut(e.target.checked)}
+                      className="rounded border-amber-400 text-emerald-700 focus:ring-emerald-500"
                     />
-                  </div>
+                    <span>Otomatis sesuaikan angka awalan Nomor Surat saat Nomor Urut diubah</span>
+                  </label>
                 </div>
 
                 <p className="text-[10px] text-amber-800 leading-tight">
-                  💡 <strong>Mode Manual Aktif:</strong> Anda dapat memasukkan nomor surat susulan, surat khusus madrasah, atau nomor arsip fisik yang sudah terlanjur dibuat di luar sistem.
+                  💡 <strong>Mode Manual Aktif:</strong> Anda dapat mengatur Nomor Urut Surat (misal: 1, 15, 42) maupun format Nomor Surat Lengkap secara bebas untuk surat susulan atau sinkronisasi buku kendali fisik.
                 </p>
               </div>
             )}
