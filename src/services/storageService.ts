@@ -42,9 +42,56 @@ const STORAGE_KEYS = {
 const SIPAS_DATA_VERSION_KEY = 'sipas_data_version';
 const CURRENT_CLEAN_VERSION = 'v3_admin_password_read_only';
 
+function isRealGoogleDriveId(fileId?: string): boolean {
+  if (!fileId) return false;
+  return (
+    !fileId.startsWith('1gdrive-') &&
+    !fileId.startsWith('gdrive-link-') &&
+    !fileId.startsWith('arsip-empty-') &&
+    fileId !== 'doc-auto'
+  );
+}
+
+function sanitizeFileDocForPersistence(fileDoc?: DocumentFile): DocumentFile | undefined {
+  if (!fileDoc) return undefined;
+  if (!fileDoc.dataBase64) return fileDoc;
+  if (isRealGoogleDriveId(fileDoc.fileId) || fileDoc.dataBase64.length > 450_000) {
+    const { dataBase64: _omitted, ...rest } = fileDoc;
+    return rest;
+  }
+  return fileDoc;
+}
+
+function stripBase64FromCollection(value: unknown, onlyOversized: boolean): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((item) => {
+    if (item && typeof item === 'object' && 'fileDoc' in item && item.fileDoc && typeof item.fileDoc === 'object') {
+      const fd = item.fileDoc as DocumentFile;
+      if (
+        fd.dataBase64 &&
+        (!onlyOversized || isRealGoogleDriveId(fd.fileId) || fd.dataBase64.length > 450_000)
+      ) {
+        const { dataBase64: _omitted, ...restFileDoc } = fd;
+        return { ...item, fileDoc: restFileDoc };
+      }
+    }
+    return item;
+  });
+}
+
 class StorageService {
+  private memoryStore = new Map<string, unknown>();
+
   constructor() {
     this.ensureCleanProductionData();
+  }
+
+  invalidateCache(key?: string): void {
+    if (key) {
+      this.memoryStore.delete(key);
+    } else {
+      this.memoryStore.clear();
+    }
   }
 
   // Wipes all former dummy records & sets up 1 Administrator and Mode Hanya Lihat default
@@ -91,20 +138,41 @@ class StorageService {
   }
 
   private get<T>(key: string, defaultValue: T): T {
+    if (this.memoryStore.has(key)) {
+      return this.memoryStore.get(key) as T;
+    }
     try {
       const item = localStorage.getItem(key);
       if (!item) return defaultValue;
-      return JSON.parse(item) as T;
+      const parsed = JSON.parse(item) as T;
+      this.memoryStore.set(key, parsed);
+      return parsed;
     } catch {
       return defaultValue;
     }
   }
 
   private set<T>(key: string, value: T): void {
+    const compactValue = stripBase64FromCollection(value, true) as T;
+    this.memoryStore.set(key, compactValue);
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const serialized = JSON.stringify(compactValue);
+      if (serialized.length > 1_200_000) {
+        const stripped = stripBase64FromCollection(compactValue, false) as T;
+        this.memoryStore.set(key, stripped);
+        localStorage.setItem(key, JSON.stringify(stripped));
+      } else {
+        localStorage.setItem(key, serialized);
+      }
     } catch (e) {
-      console.error('Failed to save to localStorage:', e);
+      console.warn('localStorage quota fallback activated for', key, e);
+      try {
+        const stripped = stripBase64FromCollection(compactValue, false) as T;
+        this.memoryStore.set(key, stripped);
+        localStorage.setItem(key, JSON.stringify(stripped));
+      } catch (retryErr) {
+        console.error('Failed to save to localStorage:', retryErr);
+      }
     }
   }
 
@@ -415,6 +483,7 @@ class StorageService {
 
     const newItem: SuratMasuk = {
       ...item,
+      fileDoc: sanitizeFileDocForPersistence(item.fileDoc),
       id: `sm-${item.tahunAgenda}-${agenda.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       nomorAgenda: agenda,
       createdAt: new Date().toISOString(),
@@ -610,6 +679,7 @@ class StorageService {
 
     const newItem: SuratKeluar = {
       ...item,
+      fileDoc: sanitizeFileDocForPersistence(item.fileDoc),
       id: `sk-${year}-${String(finalNomorUrut).padStart(3, '0')}-${Date.now().toString(36).substring(4, 7)}`,
       nomorUrut: finalNomorUrut,
       nomorSuratLengkap: finalNomorLengkap,
@@ -767,6 +837,7 @@ class StorageService {
 
     const newItem: SuratKeputusan = {
       ...item,
+      fileDoc: sanitizeFileDocForPersistence(item.fileDoc),
       id: `skep-${year}-${String(finalNomorUrut).padStart(3, '0')}-${Date.now().toString(36).substring(4, 7)}`,
       nomorUrut: finalNomorUrut,
       nomorSK: finalNomorSK,
@@ -892,9 +963,18 @@ class StorageService {
 
   addArsipDigital(item: Omit<ArsipDigital, 'id' | 'createdAt' | 'updatedAt'>, user: UserProfile): ArsipDigital {
     const all = this.getArsipDigital();
+    const sanitizedFileDoc = sanitizeFileDocForPersistence(item.fileDoc);
     const newItem: ArsipDigital = {
       ...item,
-      id: `arsip-${Date.now()}`,
+      fileDoc: sanitizedFileDoc || {
+        fileId: `arsip-doc-${Date.now()}`,
+        fileName: 'Dokumen Arsip',
+        fileType: 'application/pdf',
+        fileSize: 0,
+        driveUrl: '',
+        uploadedAt: new Date().toISOString(),
+      },
+      id: `arsip-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: user.name,
@@ -921,11 +1001,7 @@ class StorageService {
         nomor_dokumen_terkait: newItem.nomorDokumenTerait || '',
         deskripsi: newItem.deskripsi || '',
         tags: newItem.tags || [],
-        file_doc: newItem.fileDoc || {
-          fileName: 'Dokumen Arsip',
-          fileType: 'application/pdf',
-          fileSize: 0,
-        },
+        file_doc: newItem.fileDoc,
         lokasi_fisik: newItem.lokasiFisik || '',
         created_at: newItem.createdAt || new Date().toISOString(),
         updated_at: newItem.updatedAt || new Date().toISOString(),
@@ -1199,7 +1275,7 @@ class StorageService {
       }
 
       let countSM = 0;
-      if (Array.isArray(remoteSM)) {
+      if (!smErr && Array.isArray(remoteSM)) {
         const mappedSM: SuratMasuk[] = remoteSM.map((r: any) => ({
           id: r.id,
           nomorAgenda: r.nomor_agenda,
@@ -1215,17 +1291,24 @@ class StorageService {
           tujuanInternal: r.tujuan_internal || '',
           status: r.status,
           catatan: r.catatan || '',
-          fileDoc: r.file_doc,
+          fileDoc: sanitizeFileDocForPersistence(r.file_doc),
           disposisi: r.disposisi,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
           createdBy: r.created_by,
         }));
-        this.set(STORAGE_KEYS.SURAT_MASUK, mappedSM);
-        countSM = mappedSM.length;
+        const nowMs = Date.now();
+        const pendingLocalSM = this.getSuratMasuk().filter(
+          (localItem) =>
+            !mappedSM.some((m) => m.id === localItem.id) &&
+            nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+        );
+        const mergedSM = [...pendingLocalSM, ...mappedSM];
+        this.set(STORAGE_KEYS.SURAT_MASUK, mergedSM);
+        countSM = mergedSM.length;
 
         // Sync highest agenda counter per year
-        mappedSM.forEach((s) => {
+        mergedSM.forEach((s) => {
           const num = parseInt(s.nomorAgenda, 10);
           if (!isNaN(num)) this.commitAgendaSuratMasuk(s.tahunAgenda, String(num));
         });
@@ -1242,7 +1325,7 @@ class StorageService {
       }
 
       let countSKel = 0;
-      if (Array.isArray(remoteSKel)) {
+      if (!skelErr && Array.isArray(remoteSKel)) {
         const mappedSKel: SuratKeluar[] = remoteSKel.map((r: any) => ({
           id: r.id,
           nomorUrut: r.nomor_urut,
@@ -1261,16 +1344,23 @@ class StorageService {
           sifat: r.sifat || r.sifat_surat || 'Biasa',
           status: r.status || 'Terkirim',
           catatan: r.catatan || '',
-          fileDoc: r.file_doc,
+          fileDoc: sanitizeFileDocForPersistence(r.file_doc),
           createdAt: r.created_at,
           updatedAt: r.updated_at,
           createdBy: r.created_by,
         }));
-        this.set(STORAGE_KEYS.SURAT_KELUAR, mappedSKel);
-        countSKel = mappedSKel.length;
+        const nowMs = Date.now();
+        const pendingLocalSKel = this.getSuratKeluar().filter(
+          (localItem) =>
+            !mappedSKel.some((m) => m.id === localItem.id) &&
+            nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+        );
+        const mergedSKel = [...pendingLocalSKel, ...mappedSKel];
+        this.set(STORAGE_KEYS.SURAT_KELUAR, mergedSKel);
+        countSKel = mergedSKel.length;
 
         // Sync highest surat keluar counter per year
-        mappedSKel.forEach((s) => {
+        mergedSKel.forEach((s) => {
           if (s.nomorUrut) this.commitSuratKeluarNumber(s.tahunSurat, s.nomorUrut);
         });
       }
@@ -1286,7 +1376,7 @@ class StorageService {
       }
 
       let countSK = 0;
-      if (Array.isArray(remoteSK)) {
+      if (!skErr && Array.isArray(remoteSK)) {
         const mappedSK: SuratKeputusan[] = remoteSK.map((r: any) => ({
           id: r.id,
           nomorUrut: r.nomor_urut,
@@ -1300,16 +1390,23 @@ class StorageService {
           jabatanPenandatangan: r.jabatan_penandatangan || 'Kepala Madrasah',
           status: r.status || r.status_sk || 'Berlaku',
           ringkasan: r.ringkasan || r.keterangan || '',
-          fileDoc: r.file_doc,
+          fileDoc: sanitizeFileDocForPersistence(r.file_doc),
           createdAt: r.created_at,
           updatedAt: r.updated_at,
           createdBy: r.created_by,
         }));
-        this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, mappedSK);
-        countSK = mappedSK.length;
+        const nowMs = Date.now();
+        const pendingLocalSK = this.getSuratKeputusan().filter(
+          (localItem) =>
+            !mappedSK.some((m) => m.id === localItem.id) &&
+            nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+        );
+        const mergedSK = [...pendingLocalSK, ...mappedSK];
+        this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, mergedSK);
+        countSK = mergedSK.length;
 
         // Sync highest SK counter per year
-        mappedSK.forEach((s) => {
+        mergedSK.forEach((s) => {
           if (s.nomorUrut) {
             const counterKey = `${STORAGE_KEYS.COUNTER_SK}${s.tahun}`;
             const current = this.get<number>(counterKey, 0);
@@ -1329,31 +1426,38 @@ class StorageService {
       }
 
       let countArsip = 0;
-      if (Array.isArray(remoteArsip)) {
+      if (!arsipErr && Array.isArray(remoteArsip)) {
         const mappedArsip: ArsipDigital[] = remoteArsip.map((r: any) => ({
           id: r.id,
           kodeArsip: r.kode_arsip || r.id,
-          judulArsip: r.judul_arsip,
-          kategori: r.kategori,
-          tahun: r.tahun,
+          judulArsip: r.judul_arsip || '',
+          kategori: r.kategori || 'Umum',
+          tahun: r.tahun || new Date().getFullYear(),
           nomorDokumenTerait: r.nomor_dokumen_terkait || r.nomor_dokumen || '',
           deskripsi: r.deskripsi || r.keterangan || '',
-          tags: r.tags || [],
-          fileDoc: r.file_doc || {
-            id: 'doc-auto',
+          tags: Array.isArray(r.tags) ? r.tags : [],
+          fileDoc: sanitizeFileDocForPersistence(r.file_doc) || {
+            fileId: 'doc-auto',
             fileName: 'Dokumen Arsip',
             fileType: 'application/pdf',
-            size: 0,
-            uploadDate: r.created_at || new Date().toISOString(),
-            webViewLink: '#',
+            fileSize: 0,
+            driveUrl: '',
+            uploadedAt: r.created_at || new Date().toISOString(),
           },
           lokasiFisik: r.lokasi_fisik || '',
           createdAt: r.created_at,
           updatedAt: r.updated_at || r.created_at,
-          createdBy: r.created_by,
+          createdBy: r.created_by || 'Administrator',
         }));
-        this.set(STORAGE_KEYS.ARSIP, mappedArsip);
-        countArsip = mappedArsip.length;
+        const nowMs = Date.now();
+        const pendingLocalArsip = this.getArsipDigital().filter(
+          (localItem) =>
+            !mappedArsip.some((m) => m.id === localItem.id) &&
+            nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+        );
+        const mergedArsip = [...pendingLocalArsip, ...mappedArsip];
+        this.set(STORAGE_KEYS.ARSIP, mergedArsip);
+        countArsip = mergedArsip.length;
       }
 
       // 5. Fetch activity_logs
@@ -1435,6 +1539,7 @@ class StorageService {
   }
 
   resetToDefault(user: UserProfile): void {
+    this.memoryStore.clear();
     localStorage.clear();
     localStorage.setItem(SIPAS_DATA_VERSION_KEY, CURRENT_CLEAN_VERSION);
     this.set(STORAGE_KEYS.SETTINGS, initialMadrasahSettings);

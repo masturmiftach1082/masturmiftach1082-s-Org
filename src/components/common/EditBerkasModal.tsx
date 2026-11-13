@@ -37,12 +37,9 @@ export default function EditBerkasModal({
   itemTitle,
   itemSubtitle,
   currentFile,
-  currentUser,
   onSave,
   onPreview,
 }: EditBerkasModalProps) {
-  if (!isOpen) return null;
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Replacement file state
@@ -58,6 +55,8 @@ export default function EditBerkasModal({
   const [deleteFromGoogleDriveAlso, setDeleteFromGoogleDriveAlso] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  if (!isOpen) return null;
 
   const getCategoryLabel = (): 'Surat Masuk' | 'Surat Keluar' | 'Surat Keputusan' | 'Arsip Digital' => {
     switch (tipe) {
@@ -87,9 +86,9 @@ export default function EditBerkasModal({
     setSelectedFile(file);
     setIsMarkedForRemoval(false);
 
-    // Read small/medium files as Data URL for instant zero-auth preview across devices
+    // Read small files (<= 350 KB) as Data URL only if Drive upload is not active
     let base64Content: string | undefined;
-    if (file.size <= 5 * 1024 * 1024) {
+    if (file.size <= 350 * 1024 && !isAnyDriveUploadConnected()) {
       try {
         base64Content = await new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -123,7 +122,7 @@ export default function EditBerkasModal({
           downloadUrl: driveMeta.downloadUrl,
           uploadedAt: new Date().toISOString(),
           textContent: itemTitle,
-          dataBase64: base64Content,
+          dataBase64: undefined,
         });
         setUploadNotice('Berhasil diunggah ke folder Google Drive madrasah!');
       } catch (err: any) {

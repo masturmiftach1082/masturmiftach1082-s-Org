@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SuratMasuk, SifatSurat, StatusSuratMasuk, UserProfile } from '../../types';
 import { storageService } from '../../services/storageService';
 import { isAnyDriveUploadConnected, uploadFileSmart } from '../../services/googleDriveService';
@@ -70,7 +70,23 @@ export default function SuratMasukModal({
   const [isFileRemoved, setIsFileRemoved] = useState(false);
   const [fileDataBase64, setFileDataBase64] = useState<string | undefined>(undefined);
 
+  const wasOpenRef = useRef(false);
+  const prevEditIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      prevEditIdRef.current = null;
+      return;
+    }
+
+    const currentEditId = suratToEdit?.id ?? null;
+    if (wasOpenRef.current && prevEditIdRef.current === currentEditId) {
+      return;
+    }
+    wasOpenRef.current = true;
+    prevEditIdRef.current = currentEditId;
+
     if (suratToEdit) {
       setNomorAgendaPreview(suratToEdit.nomorAgenda);
       setCustomNomorAgenda(suratToEdit.nomorAgenda);
@@ -132,8 +148,9 @@ export default function SuratMasukModal({
       setUploadNotice(null);
       setIsSimulatedUpload(false);
       setIsFileRemoved(false);
+      setFileDataBase64(undefined);
     }
-  }, [suratToEdit, isOpen]);
+  }, [isOpen, suratToEdit]);
 
   if (!isOpen) return null;
 
@@ -147,11 +164,13 @@ export default function SuratMasukModal({
     setFileType(file.type || 'application/pdf');
     setUploadNotice(null);
 
-    // Read base64 for direct device preview
-    if (file.size <= 5 * 1024 * 1024) {
+    // Only keep lightweight local base64 preview if file is small (<= 350 KB)
+    if (file.size <= 350 * 1024) {
       const reader = new FileReader();
       reader.onload = () => setFileDataBase64(reader.result as string);
       reader.readAsDataURL(file);
+    } else {
+      setFileDataBase64(undefined);
     }
 
     if (isAnyDriveUploadConnected()) {
@@ -160,6 +179,7 @@ export default function SuratMasukModal({
         const meta = await uploadFileSmart(file, 'Surat Masuk', perihal || file.name);
         setDriveFileId(meta.fileId);
         setDriveUrl(meta.driveUrl);
+        setFileDataBase64(undefined);
         setIsSimulatedUpload(false);
         setUploadNotice('Berhasil diunggah otomatis ke Google Drive madrasah');
       } catch (err: any) {
@@ -674,10 +694,17 @@ export default function SuratMasukModal({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
+              disabled={isUploadingDrive}
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isEdit ? 'Simpan Perubahan' : 'Daftarkan Surat Masuk'}</span>
+              <span>
+                {isUploadingDrive
+                  ? 'Menunggu Unggahan Drive...'
+                  : isEdit
+                  ? 'Simpan Perubahan'
+                  : 'Daftarkan Surat Masuk'}
+              </span>
             </button>
           </div>
         </form>

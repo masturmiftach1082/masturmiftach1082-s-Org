@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   MadrasahSettings,
   UserProfile,
@@ -101,15 +101,40 @@ export default function App() {
   // Cloud Sync State
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Refresh all state from storage
+  // Track whether any input/edit modal is currently open so background sync never disrupts typing
+  const isAnyModalOpen =
+    isSuratMasukModalOpen ||
+    isSuratKeluarModalOpen ||
+    isSKModalOpen ||
+    isArsipModalOpen ||
+    isDisposisiModalOpen ||
+    isEditBerkasOpen ||
+    isLoginModalOpen;
+  const isAnyModalOpenRef = useRef(isAnyModalOpen);
+  isAnyModalOpenRef.current = isAnyModalOpen;
+
+  // Refresh all state from storage (preserving referential equality when unchanged)
   const refreshData = useCallback(() => {
-    setSettings(storageService.getSettings());
-    setAllUsers(storageService.getUsers());
-    setSuratMasukList(storageService.getSuratMasuk());
-    setSuratKeluarList(storageService.getSuratKeluar());
-    setSKList(storageService.getSuratKeputusan());
-    setArsipList(storageService.getArsipDigital());
-    setActivityLogs(storageService.getActivityLogs());
+    const nextSettings = storageService.getSettings();
+    setSettings((prev) => (JSON.stringify(prev) === JSON.stringify(nextSettings) ? prev : nextSettings));
+
+    const nextUsers = storageService.getUsers();
+    setAllUsers((prev) => (JSON.stringify(prev) === JSON.stringify(nextUsers) ? prev : nextUsers));
+
+    const nextMasuk = storageService.getSuratMasuk();
+    setSuratMasukList((prev) => (JSON.stringify(prev) === JSON.stringify(nextMasuk) ? prev : nextMasuk));
+
+    const nextKeluar = storageService.getSuratKeluar();
+    setSuratKeluarList((prev) => (JSON.stringify(prev) === JSON.stringify(nextKeluar) ? prev : nextKeluar));
+
+    const nextSK = storageService.getSuratKeputusan();
+    setSKList((prev) => (JSON.stringify(prev) === JSON.stringify(nextSK) ? prev : nextSK));
+
+    const nextArsip = storageService.getArsipDigital();
+    setArsipList((prev) => (JSON.stringify(prev) === JSON.stringify(nextArsip) ? prev : nextArsip));
+
+    const nextLogs = storageService.getActivityLogs();
+    setActivityLogs((prev) => (JSON.stringify(prev) === JSON.stringify(nextLogs) ? prev : nextLogs));
   }, []);
 
   const handleManualSync = useCallback(async () => {
@@ -124,39 +149,50 @@ export default function App() {
     // 1. Initial background sync
     setIsSyncing(true);
     storageService.syncFromSupabase().then(() => {
-      refreshData();
+      if (!isAnyModalOpenRef.current) {
+        refreshData();
+      }
       setIsSyncing(false);
     });
 
     // 2. Realtime listener: triggers whenever another device modifies data in Supabase
     const unsubscribeRealtime = storageService.subscribeToRealtime(() => {
-      refreshData();
+      if (!isAnyModalOpenRef.current) {
+        refreshData();
+      }
     });
 
     // 3. Multi-tab synchronization on the same browser
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key?.startsWith('sipas_')) {
-        refreshData();
+        storageService.invalidateCache(e.key);
+        if (!isAnyModalOpenRef.current) {
+          refreshData();
+        }
       }
     };
     window.addEventListener('storage', handleStorageEvent);
 
-    // 4. Focus & visibility sync: when device turns on or tab is active
+    // 4. Focus & visibility sync: skipped while typing inside an active modal
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isAnyModalOpenRef.current) {
         storageService.syncFromSupabase().then(() => {
-          refreshData();
+          if (!isAnyModalOpenRef.current) {
+            refreshData();
+          }
         });
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
-    // 5. Periodic polling fallback (every 5 seconds when tab is active)
+    // 5. Periodic polling fallback (every 5 seconds when tab is active & no modal is open)
     const pollInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isAnyModalOpenRef.current) {
         storageService.syncFromSupabase().then(() => {
-          refreshData();
+          if (!isAnyModalOpenRef.current) {
+            refreshData();
+          }
         });
       }
     }, 5000);

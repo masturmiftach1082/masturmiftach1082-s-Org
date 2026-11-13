@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SuratMasuk, Disposisi, UserProfile } from '../../types';
 import { X, SendHorizontal, Clock, CheckSquare } from 'lucide-react';
 
@@ -43,8 +43,23 @@ export default function DisposisiModal({
   const [selectedInstruksi, setSelectedInstruksi] = useState<string[]>([]);
   const [catatanKepala, setCatatanKepala] = useState('');
 
+  const wasOpenRef = useRef(false);
+  const prevSuratIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (surat?.disposisi) {
+    if (!isOpen || !surat) {
+      wasOpenRef.current = false;
+      prevSuratIdRef.current = null;
+      return;
+    }
+
+    if (wasOpenRef.current && prevSuratIdRef.current === surat.id) {
+      return;
+    }
+    wasOpenRef.current = true;
+    prevSuratIdRef.current = surat.id;
+
+    if (surat.disposisi) {
       setSifat(surat.disposisi.sifat);
       setBatasWaktu(surat.disposisi.batasWaktu || '');
       setSelectedTujuan(surat.disposisi.tujuanDisposisi || []);
@@ -57,7 +72,7 @@ export default function DisposisiModal({
       setSelectedInstruksi(['Tindak lanjuti & selesaikan segera']);
       setCatatanKepala('');
     }
-  }, [surat]);
+  }, [isOpen, surat]);
 
   if (!isOpen || !surat) return null;
 

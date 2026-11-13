@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { SuratKeluar, SifatSurat, StatusSuratKeluar, MadrasahSettings, UserProfile } from '../../types';
 import { storageService } from '../../services/storageService';
 import { isAnyDriveUploadConnected, uploadFileSmart } from '../../services/googleDriveService';
@@ -53,6 +53,9 @@ export default function SuratKeluarModal({
   const [isFileRemoved, setIsFileRemoved] = useState(false);
   const [fileDataBase64, setFileDataBase64] = useState<string | undefined>(undefined);
 
+  const wasOpenRef = useRef(false);
+  const prevEditIdRef = useRef<string | null>(null);
+
   // Real-time generated number & sequence preview
   const generatedInfo = useMemo(() => {
     if (isEdit && suratToEdit) {
@@ -70,6 +73,19 @@ export default function SuratKeluarModal({
   const generatedNumber = generatedInfo.nomorLengkap;
 
   useEffect(() => {
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      prevEditIdRef.current = null;
+      return;
+    }
+
+    const currentEditId = suratToEdit?.id ?? null;
+    if (wasOpenRef.current && prevEditIdRef.current === currentEditId) {
+      return;
+    }
+    wasOpenRef.current = true;
+    prevEditIdRef.current = currentEditId;
+
     if (suratToEdit) {
       setTanggalSurat(suratToEdit.tanggalSurat);
       setKodeKlasifikasi(suratToEdit.kodeKlasifikasi || 'PP.00');
@@ -128,8 +144,9 @@ export default function SuratKeluarModal({
       setModePenomoran('otomatis');
       setSyncNomorWithUrut(true);
       setIsFileRemoved(false);
+      setFileDataBase64(undefined);
     }
-  }, [suratToEdit, isOpen]);
+  }, [isOpen, suratToEdit]);
 
   if (!isOpen) return null;
 
@@ -143,11 +160,13 @@ export default function SuratKeluarModal({
     setFileType(file.type || 'application/pdf');
     setUploadNotice(null);
 
-    // Read base64 for instant cross-device preview
-    if (file.size <= 5 * 1024 * 1024) {
+    // Only keep lightweight local base64 preview if file is small (<= 350 KB)
+    if (file.size <= 350 * 1024) {
       const reader = new FileReader();
       reader.onload = () => setFileDataBase64(reader.result as string);
       reader.readAsDataURL(file);
+    } else {
+      setFileDataBase64(undefined);
     }
 
     if (isAnyDriveUploadConnected()) {
@@ -156,6 +175,7 @@ export default function SuratKeluarModal({
         const meta = await uploadFileSmart(file, 'Surat Keluar', perihal || file.name);
         setDriveFileId(meta.fileId);
         setDriveUrl(meta.driveUrl);
+        setFileDataBase64(undefined);
         setUploadNotice('Berhasil diunggah otomatis ke Google Drive madrasah');
       } catch (err: any) {
         console.warn('Google Drive upload notice:', err);
@@ -801,10 +821,17 @@ export default function SuratKeluarModal({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
+              disabled={isUploadingDrive}
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isEdit ? 'Simpan Perubahan' : 'Terbitkan Surat & Kunci Nomor'}</span>
+              <span>
+                {isUploadingDrive
+                  ? 'Menunggu Unggahan Drive...'
+                  : isEdit
+                  ? 'Simpan Perubahan'
+                  : 'Terbitkan Surat & Kunci Nomor'}
+              </span>
             </button>
           </div>
         </form>

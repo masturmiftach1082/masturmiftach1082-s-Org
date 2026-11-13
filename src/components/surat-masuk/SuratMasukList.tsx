@@ -15,7 +15,6 @@ import {
   Filter,
   Paperclip,
   RefreshCw,
-  Lock,
 } from 'lucide-react';
 
 interface SuratMasukListProps {
@@ -125,10 +124,12 @@ export default function SuratMasukList({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900">
-            Pengelolaan Surat Masuk
+            {canManage ? 'Pengelolaan Surat Masuk' : 'Daftar Surat Masuk'}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Buku register agenda surat masuk dengan penomoran berurutan unik per tahun administrasi.
+            {canManage
+              ? `Buku register agenda surat masuk ${settings.namaMadrasah} dengan penomoran otomatis & manual.`
+              : `Buku agenda dan daftar surat masuk ${settings.namaMadrasah}.`}
           </p>
         </div>
 
@@ -155,27 +156,6 @@ export default function SuratMasukList({
           )}
         </div>
       </div>
-
-      {/* Mode Hanya Lihat Info Banner */}
-      {!canManage && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              <strong>Mode Hanya Lihat:</strong> Masuk sebagai Administrator untuk menambah, mengedit data surat, mengganti berkas lampiran, atau memberi disposisi.
-            </span>
-          </div>
-          {onOpenLoginModal && (
-            <button
-              type="button"
-              onClick={onOpenLoginModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg border border-amber-400 shadow-2xs shrink-0 cursor-pointer"
-            >
-              <Lock className="w-3.5 h-3.5" /> Masuk Admin untuk Edit
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Filter & Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5 p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">

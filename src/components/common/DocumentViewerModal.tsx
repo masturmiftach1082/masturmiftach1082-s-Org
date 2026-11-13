@@ -126,6 +126,23 @@ export default function DocumentViewerModal({
                   <span>{formatFileSize(fileDoc.fileSize)}</span>
                 </div>
               </div>
+            ) : fileDoc.fileId &&
+              !fileDoc.fileId.startsWith('1gdrive-') &&
+              !fileDoc.fileId.startsWith('gdrive-link-') &&
+              !fileDoc.fileId.startsWith('arsip-empty-') &&
+              fileDoc.fileId !== 'doc-auto' ? (
+              <div className="w-full space-y-2">
+                <iframe
+                  src={`https://drive.google.com/file/d/${fileDoc.fileId}/preview`}
+                  className="w-full h-[500px] rounded-lg border border-slate-300 shadow-sm bg-white"
+                  title={fileDoc.fileName}
+                  allow="autoplay"
+                />
+                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                  <span>Pratinjau Langsung dari Google Drive Madrasah</span>
+                  <span>{formatFileSize(fileDoc.fileSize)}</span>
+                </div>
+              </div>
             ) : (
               /* Simulated Madrasah Document Summary Preview */
               <div className="w-full max-w-xl bg-white shadow-sm border border-slate-200 p-8 rounded-md text-slate-800 font-serif min-h-[320px] flex flex-col justify-between">

@@ -13,7 +13,6 @@ import {
   MapPin,
   Paperclip,
   Edit,
-  Lock,
   Eye,
 } from 'lucide-react';
 
@@ -50,12 +49,13 @@ export default function ArsipDigitalList({
   }, [arsipList]);
 
   const filteredList = useMemo(() => {
+    const q = searchTerm.toLowerCase();
     return arsipList.filter((a) => {
       const matchSearch =
-        a.judulArsip.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.kodeArsip.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.deskripsi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.tags.some((t) => t.toLowerCase().includes(searchTerm.toLowerCase()));
+        (a.judulArsip || '').toLowerCase().includes(q) ||
+        (a.kodeArsip || '').toLowerCase().includes(q) ||
+        (a.deskripsi || '').toLowerCase().includes(q) ||
+        (a.tags || []).some((t) => (t || '').toLowerCase().includes(q));
 
       const matchKategori = selectedKategori === 'ALL' || a.kategori === selectedKategori;
       return matchSearch && matchKategori;
@@ -77,16 +77,16 @@ export default function ArsipDigitalList({
     ];
 
     const rows = filteredList.map((a) => [
-      a.kodeArsip,
-      a.judulArsip,
-      a.kategori,
-      a.tahun,
+      a.kodeArsip || '-',
+      a.judulArsip || '-',
+      a.kategori || '-',
+      a.tahun || '-',
       a.nomorDokumenTerait || '-',
-      formatFileSize(a.fileDoc.fileSize),
-      a.fileDoc.fileType,
+      formatFileSize(a.fileDoc?.fileSize || 0),
+      a.fileDoc?.fileType || '-',
       a.lokasiFisik || '-',
-      a.fileDoc.fileId,
-      a.createdBy,
+      a.fileDoc?.fileId || '-',
+      a.createdBy || '-',
     ]);
 
     exportToCSV(`Katalog_Arsip_Digital_${settings.namaMadrasah.replace(/\s+/g, '_')}`, headers, rows);
@@ -101,7 +101,9 @@ export default function ArsipDigitalList({
             Arsip Digital Madrasah
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Repositori penyimpanan dokumen digital terpusat pada Cloud &amp; Google Drive MI Ma'arif Al Ihsan Soborejo.
+            {canManage
+              ? `Pengelolaan & repositori dokumen digital terpusat ${settings.namaMadrasah}.`
+              : `Repositori arsip dokumen digital ${settings.namaMadrasah}.`}
           </p>
         </div>
 
@@ -122,27 +124,6 @@ export default function ArsipDigitalList({
           )}
         </div>
       </div>
-
-      {/* Mode Hanya Lihat Info Banner */}
-      {!canManage && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              <strong>Mode Hanya Lihat:</strong> Masuk sebagai Administrator untuk menambah, mengedit dokumen, mengganti berkas, atau menghapus arsip digital.
-            </span>
-          </div>
-          {onOpenLoginModal && (
-            <button
-              type="button"
-              onClick={onOpenLoginModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg border border-amber-400 shadow-2xs shrink-0 cursor-pointer"
-            >
-              <Lock className="w-3.5 h-3.5" /> Masuk Admin untuk Edit
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Filter and Search */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">

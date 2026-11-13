@@ -21,17 +21,6 @@ interface HeaderProps {
   onManualSync?: () => void;
 }
 
-const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Dashboard Utama', subtitle: 'Ringkasan & Statistik Persuratan' },
-  'surat-masuk': { title: 'Surat Masuk', subtitle: 'Buku Agenda & Disposisi Digital' },
-  'surat-keluar': { title: 'Surat Keluar', subtitle: 'Penomoran Otomatis Resmi 0xx/Mis.11.23.14.14/...' },
-  'surat-keputusan': { title: 'Surat Keputusan', subtitle: 'Ketetapan & Regulasi Kepala Madrasah' },
-  arsip: { title: 'Arsip Digital', subtitle: 'Penyimpanan Google Drive Madrasah' },
-  laporan: { title: 'Laporan & Agenda', subtitle: 'Buku Register & Lembar Cetak Dinas' },
-  pengguna: { title: 'Administrator & Keamanan', subtitle: 'Autentikasi & Hak Akses Persuratan' },
-  pengaturan: { title: 'Pengaturan Sistem', subtitle: 'Identitas, Penomoran, & Integrasi' },
-};
-
 export default function Header({
   currentTab,
   onOpenMobileSidebar,
@@ -42,9 +31,64 @@ export default function Header({
   isSyncing = false,
   onManualSync,
 }: HeaderProps) {
-  const info = TAB_TITLES[currentTab] || { title: 'SIPAS', subtitle: settings.namaMadrasah };
   const todayFormatted = formatDateIndo(new Date().toISOString().split('T')[0]);
   const isAdmin = currentUser.role === 'admin';
+  const kodeMadrasah = settings.kodeMadrasah || 'Mis.11.23.14.14';
+
+  const getTabInfo = (tab: string): { title: string; subtitle: string } => {
+    switch (tab) {
+      case 'dashboard':
+        return {
+          title: 'Dashboard Utama',
+          subtitle: `Ringkasan & Statistik Persuratan ${settings.namaMadrasah}`,
+        };
+      case 'surat-masuk':
+        return {
+          title: 'Surat Masuk',
+          subtitle: isAdmin
+            ? 'Pengelolaan Buku Agenda & Disposisi Digital'
+            : 'Daftar & Buku Agenda Surat Masuk',
+        };
+      case 'surat-keluar':
+        return {
+          title: 'Surat Keluar',
+          subtitle: isAdmin
+            ? `Pengelolaan & Penomoran Surat Keluar (${kodeMadrasah})`
+            : `Daftar & Agenda Surat Keluar (${kodeMadrasah})`,
+        };
+      case 'surat-keputusan':
+        return {
+          title: 'Surat Keputusan',
+          subtitle: isAdmin
+            ? 'Pengelolaan Ketetapan & SK Kepala Madrasah'
+            : 'Daftar Ketetapan & Surat Keputusan (SK) Madrasah',
+        };
+      case 'arsip':
+        return {
+          title: 'Arsip Digital',
+          subtitle: `Repositori Arsip Digital ${settings.namaMadrasah}`,
+        };
+      case 'laporan':
+        return {
+          title: 'Laporan & Agenda',
+          subtitle: 'Buku Register & Lembar Cetak Dinas',
+        };
+      case 'pengguna':
+        return {
+          title: 'Administrator & Keamanan',
+          subtitle: 'Autentikasi & Hak Akses Persuratan',
+        };
+      case 'pengaturan':
+        return {
+          title: 'Pengaturan Sistem',
+          subtitle: 'Identitas, Penomoran, & Integrasi',
+        };
+      default:
+        return { title: 'SIPAS', subtitle: settings.namaMadrasah };
+    }
+  };
+
+  const info = getTabInfo(currentTab);
 
   return (
     <header className="h-16 bg-white/95 backdrop-blur-xs border-b border-amber-500/20 shadow-xs px-4 md:px-6 flex items-center justify-between gap-4 sticky top-0 z-30 no-print">
