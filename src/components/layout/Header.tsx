@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Eye,
   RefreshCw,
+  FolderOpen,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -76,6 +77,21 @@ export default function Header({
           <Calendar className="w-3.5 h-3.5 text-amber-600" />
           <span className="font-medium">{todayFormatted}</span>
         </div>
+
+        {/* Quick Google Drive Folder Access */}
+        {settings.googleDriveConfig?.driveFolderUrl && (
+          <a
+            href={settings.googleDriveConfig.driveFolderUrl}
+            target="_blank"
+            rel="noreferrer"
+            title="Buka Folder Google Drive MI Ma'arif Al Ihsan Soborejo (Tanpa Autentikasi Firebase)"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-950 bg-white hover:bg-emerald-50 rounded-lg border border-emerald-300 shadow-2xs transition-all active:scale-95"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden xl:inline">Folder Drive Madrasah</span>
+            <span className="xl:hidden">Drive</span>
+          </a>
+        )}
 
         {/* Live Multi-Device Cloud Sync Indicator */}
         <button

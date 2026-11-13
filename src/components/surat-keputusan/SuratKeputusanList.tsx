@@ -11,6 +11,8 @@ import {
   Trash2,
   HardDrive,
   Award,
+  Paperclip,
+  Lock,
 } from 'lucide-react';
 
 interface SuratKeputusanListProps {
@@ -21,6 +23,8 @@ interface SuratKeputusanListProps {
   onEdit: (sk: SuratKeputusan) => void;
   onDelete: (id: string) => void;
   onViewDocument: (sk: SuratKeputusan) => void;
+  onEditBerkas?: (sk: SuratKeputusan) => void;
+  onOpenLoginModal?: () => void;
 }
 
 export default function SuratKeputusanList({
@@ -31,6 +35,8 @@ export default function SuratKeputusanList({
   onEdit,
   onDelete,
   onViewDocument,
+  onEditBerkas,
+  onOpenLoginModal,
 }: SuratKeputusanListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
@@ -119,6 +125,27 @@ export default function SuratKeputusanList({
         </div>
       </div>
 
+      {/* Mode Hanya Lihat Info Banner */}
+      {!canManage && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>
+              <strong>Mode Hanya Lihat:</strong> Masuk sebagai Administrator untuk menetapkan SK baru, mengedit data SK, atau mengganti berkas PDF SK.
+            </span>
+          </div>
+          {onOpenLoginModal && (
+            <button
+              type="button"
+              onClick={onOpenLoginModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg border border-amber-400 shadow-2xs shrink-0 cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5" /> Masuk Admin untuk Edit
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
         <div className="md:col-span-2 relative">
@@ -174,7 +201,7 @@ export default function SuratKeputusanList({
                 <th className="py-3 px-4 w-32 text-amber-200">Tahun Pelajaran</th>
                 <th className="py-3 px-4 w-28 text-amber-200">Status</th>
                 <th className="py-3 px-4 w-20 text-center text-amber-200">Berkas</th>
-                <th className="py-3 px-4 w-28 text-right text-amber-200">Aksi</th>
+                <th className="py-3 px-4 w-48 text-right text-amber-200">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -203,11 +230,20 @@ export default function SuratKeputusanList({
                     <td className="py-3 px-4 text-center">
                       {sk.fileDoc ? (
                         <button
-                          onClick={() => onViewDocument(sk)}
-                          title="Buka Dokumen Google Drive"
-                          className="inline-flex items-center justify-center w-6 h-6 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                          onClick={() => (onEditBerkas ? onEditBerkas(sk) : onViewDocument(sk))}
+                          title={`Dokumen: ${sk.fileDoc.fileName} - Klik untuk kelola / edit berkas`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-amber-100 hover:text-amber-950 hover:border-amber-300 transition-colors cursor-pointer group/file"
                         >
-                          <HardDrive className="w-3.5 h-3.5" />
+                          <HardDrive className="w-3 h-3 text-emerald-700 group-hover/file:text-amber-800" />
+                          <span>Ada</span>
+                        </button>
+                      ) : canManage && onEditBerkas ? (
+                        <button
+                          onClick={() => onEditBerkas(sk)}
+                          title="Lampirkan berkas SK"
+                          className="text-[10px] font-medium text-slate-400 hover:text-emerald-700 hover:underline cursor-pointer"
+                        >
+                          + Berkas
                         </button>
                       ) : (
                         <span className="text-slate-300">-</span>
@@ -215,15 +251,33 @@ export default function SuratKeputusanList({
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {sk.fileDoc && (
+                          <button
+                            onClick={() => onViewDocument(sk)}
+                            title="Pratinjau Dokumen"
+                            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {canManage && (
                           <>
                             <button
                               onClick={() => onEdit(sk)}
-                              title="Ubah SK"
-                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
+                              title="Edit Data & Berkas SK"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded transition-colors cursor-pointer"
                             >
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3 h-3 text-emerald-700" /> Edit
                             </button>
+                            {onEditBerkas && (
+                              <button
+                                onClick={() => onEditBerkas(sk)}
+                                title="Edit / Ganti Berkas SK (Koreksi salah unggah)"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition-colors cursor-pointer"
+                              >
+                                <Paperclip className="w-3 h-3" /> Berkas
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 if (confirm(`Hapus ${sk.nomorSK}?`)) {
@@ -231,7 +285,7 @@ export default function SuratKeputusanList({
                                 }
                               }}
                               title="Hapus"
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

@@ -754,7 +754,20 @@ export default function PengaturanView({
             </div>
 
             {/* Google Drive Status & Connection */}
-            <GoogleDriveCard />
+            <GoogleDriveCard
+              settings={formData}
+              onUpdateSettings={(cfg) => {
+                const updated = {
+                  ...formData,
+                  googleDriveConfig: {
+                    ...formData.googleDriveConfig,
+                    ...cfg,
+                  },
+                };
+                setFormData(updated);
+                onSettingsSaved(updated);
+              }}
+            />
           </div>
 
           {/* Supabase SQL DDL Schema helper */}

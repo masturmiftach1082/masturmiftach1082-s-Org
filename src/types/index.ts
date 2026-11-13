@@ -39,7 +39,10 @@ export interface GoogleDriveMetadata {
   uploadedAt: string;
   thumbnailUrl?: string;
   textContent?: string; // summary of content for quick preview
+  dataBase64?: string; // Base64 data for zero-auth direct document preview across devices
 }
+
+export type DocumentFile = GoogleDriveMetadata;
 
 export interface Disposisi {
   id: string;
@@ -174,6 +177,13 @@ export interface MadrasahSettings {
     folderIdArsip: string;
     serviceAccountEmail: string;
     isConnected: boolean;
+    driveFolderUrl?: string; // Main Google Drive folder URL for the madrasah
+    urlSuratMasuk?: string; // Subfolder link for Surat Masuk
+    urlSuratKeluar?: string; // Subfolder link for Surat Keluar
+    urlSK?: string; // Subfolder link for SK
+    urlArsip?: string; // Subfolder link for Arsip
+    appsScriptUrl?: string; // Google Apps Script Web App /exec URL for zero-auth automated Drive upload
+    activeMode?: 'apps-script' | 'folder-link' | 'api-login';
   };
   adminPassword?: string; // Password to unlock Administrator mode (default: admin123)
   izinkanNomorManual?: boolean; // Mengizinkan penomoran manual pada surat keluar, SK, dan agenda

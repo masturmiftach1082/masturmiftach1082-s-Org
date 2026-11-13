@@ -8,6 +8,7 @@ import {
   ArsipDigital,
   ActivityLog,
   GoogleDriveMetadata,
+  DocumentFile,
 } from './types';
 import { storageService } from './services/storageService';
 
@@ -36,6 +37,7 @@ import SuratKeputusanModal from './components/surat-keputusan/SuratKeputusanModa
 import ArsipDigitalModal from './components/arsip/ArsipDigitalModal';
 import DocumentViewerModal from './components/common/DocumentViewerModal';
 import LoginAdminModal from './components/auth/LoginAdminModal';
+import EditBerkasModal from './components/common/EditBerkasModal';
 
 export default function App() {
   // Navigation & Layout
@@ -73,11 +75,25 @@ export default function App() {
   const [isSKModalOpen, setIsSKModalOpen] = useState(false);
   const [skToEdit, setSKToEdit] = useState<SuratKeputusan | null>(null);
   const [isArsipModalOpen, setIsArsipModalOpen] = useState(false);
+  const [arsipToEdit, setArsipToEdit] = useState<ArsipDigital | null>(null);
 
   const [isDocViewerOpen, setIsDocViewerOpen] = useState(false);
   const [docToPreview, setDocToPreview] = useState<GoogleDriveMetadata | undefined>(undefined);
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewNomor, setPreviewNomor] = useState('');
+  const [docViewerActions, setDocViewerActions] = useState<{
+    onEditBerkas?: () => void;
+    onEditData?: () => void;
+  }>({});
+  // Edit Berkas Modal State
+  const [isEditBerkasOpen, setIsEditBerkasOpen] = useState(false);
+  const [targetBerkas, setTargetBerkas] = useState<{
+    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip';
+    id: string;
+    itemTitle: string;
+    itemSubtitle?: string;
+    currentFile?: DocumentFile | null;
+  } | null>(null);
 
   // Administrator Login Modal
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -243,16 +259,89 @@ export default function App() {
   };
 
   // Arsip Handlers
+  const handleOpenAddArsip = () => {
+    setArsipToEdit(null);
+    setIsArsipModalOpen(true);
+  };
+
+  const handleEditArsip = (arsip: ArsipDigital) => {
+    setArsipToEdit(arsip);
+    setIsArsipModalOpen(true);
+  };
+
   const handleDeleteArsip = (id: string) => {
     storageService.deleteArsipDigital(id, currentUser);
     refreshData();
   };
 
+  // Edit / Ganti Berkas Handlers
+  const handleOpenEditBerkasSuratMasuk = (surat: SuratMasuk) => {
+    setTargetBerkas({
+      tipe: 'surat-masuk',
+      id: surat.id,
+      itemTitle: `Agenda #${surat.nomorAgenda} · ${surat.perihal}`,
+      itemSubtitle: `Dari: ${surat.pengirim} (${surat.nomorSuratPengirim})`,
+      currentFile: surat.fileDoc,
+    });
+    setIsEditBerkasOpen(true);
+  };
+
+  const handleOpenEditBerkasSuratKeluar = (surat: SuratKeluar) => {
+    setTargetBerkas({
+      tipe: 'surat-keluar',
+      id: surat.id,
+      itemTitle: surat.nomorSuratLengkap,
+      itemSubtitle: `Tujuan: ${surat.tujuanSurat} · ${surat.perihal}`,
+      currentFile: surat.fileDoc,
+    });
+    setIsEditBerkasOpen(true);
+  };
+
+  const handleOpenEditBerkasSK = (sk: SuratKeputusan) => {
+    setTargetBerkas({
+      tipe: 'surat-keputusan',
+      id: sk.id,
+      itemTitle: sk.nomorSK,
+      itemSubtitle: sk.judul,
+      currentFile: sk.fileDoc,
+    });
+    setIsEditBerkasOpen(true);
+  };
+
+  const handleOpenEditBerkasArsip = (arsip: ArsipDigital) => {
+    setTargetBerkas({
+      tipe: 'arsip',
+      id: arsip.id,
+      itemTitle: arsip.judulArsip,
+      itemSubtitle: `Kode: ${arsip.kodeArsip} [${arsip.kategori}]`,
+      currentFile: arsip.fileDoc,
+    });
+    setIsEditBerkasOpen(true);
+  };
+
+  const handleSaveEditBerkas = async (newFile: DocumentFile | undefined) => {
+    if (!targetBerkas) return;
+    storageService.updateLampiranBerkas(targetBerkas.tipe, targetBerkas.id, newFile, currentUser);
+    refreshData();
+    if (selectedSuratMasuk && targetBerkas.id === selectedSuratMasuk.id) {
+      setSelectedSuratMasuk((prev) => (prev ? { ...prev, fileDoc: newFile } : null));
+    }
+    if (selectedSuratKeluar && targetBerkas.id === selectedSuratKeluar.id) {
+      setSelectedSuratKeluar((prev) => (prev ? { ...prev, fileDoc: newFile } : null));
+    }
+  };
+
   // Generic Document Preview in Google Drive Modal
-  const handleOpenDocViewer = (fileDoc: GoogleDriveMetadata, title: string, nomor?: string) => {
+  const handleOpenDocViewer = (
+    fileDoc: GoogleDriveMetadata,
+    title: string,
+    nomor?: string,
+    actions?: { onEditBerkas?: () => void; onEditData?: () => void }
+  ) => {
     setDocToPreview(fileDoc);
     setPreviewTitle(title);
     setPreviewNomor(nomor || '');
+    setDocViewerActions(actions || {});
     setIsDocViewerOpen(true);
   };
 
@@ -326,6 +415,8 @@ export default function App() {
               onOpenDisposisi={handleOpenDisposisi}
               onPrintDisposisi={handlePrintDisposisi}
               onPrintAgendaBook={() => setCurrentTab('laporan')}
+              onEditBerkas={handleOpenEditBerkasSuratMasuk}
+              onOpenLoginModal={handleOpenLoginModal}
             />
           )}
 
@@ -339,6 +430,8 @@ export default function App() {
               onDelete={handleDeleteSuratKeluar}
               onViewDetail={handleViewSuratKeluarDetail}
               onPrintAgendaBook={() => setCurrentTab('laporan')}
+              onEditBerkas={handleOpenEditBerkasSuratKeluar}
+              onOpenLoginModal={handleOpenLoginModal}
             />
           )}
 
@@ -351,8 +444,15 @@ export default function App() {
               onEdit={handleEditSK}
               onDelete={handleDeleteSK}
               onViewDocument={(sk) => {
-                if (sk.fileDoc) handleOpenDocViewer(sk.fileDoc, sk.judul, sk.nomorSK);
+                if (sk.fileDoc) {
+                  handleOpenDocViewer(sk.fileDoc, sk.judul, sk.nomorSK, {
+                    onEditBerkas: () => handleOpenEditBerkasSK(sk),
+                    onEditData: () => handleEditSK(sk),
+                  });
+                }
               }}
+              onEditBerkas={handleOpenEditBerkasSK}
+              onOpenLoginModal={handleOpenLoginModal}
             />
           )}
 
@@ -361,11 +461,17 @@ export default function App() {
               arsipList={arsipList}
               settings={settings}
               currentUser={currentUser}
-              onAddNew={() => setIsArsipModalOpen(true)}
+              onAddNew={handleOpenAddArsip}
+              onEdit={handleEditArsip}
               onDelete={handleDeleteArsip}
               onViewDocument={(arsip) => {
-                handleOpenDocViewer(arsip.fileDoc, arsip.judulArsip, arsip.kodeArsip);
+                handleOpenDocViewer(arsip.fileDoc, arsip.judulArsip, arsip.kodeArsip, {
+                  onEditBerkas: () => handleOpenEditBerkasArsip(arsip),
+                  onEditData: () => handleEditArsip(arsip),
+                });
               }}
+              onEditBerkas={handleOpenEditBerkasArsip}
+              onOpenLoginModal={handleOpenLoginModal}
             />
           )}
 
@@ -437,8 +543,14 @@ export default function App() {
         onOpenDisposisi={handleOpenDisposisi}
         onPrintDisposisi={handlePrintDisposisi}
         onViewDocument={(s) => {
-          if (s.fileDoc) handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratPengirim);
+          if (s.fileDoc) {
+            handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratPengirim, {
+              onEditBerkas: () => handleOpenEditBerkasSuratMasuk(s),
+              onEditData: () => handleEditSuratMasuk(s),
+            });
+          }
         }}
+        onEditBerkas={handleOpenEditBerkasSuratMasuk}
       />
 
       {/* 3. Disposisi Modal */}
@@ -478,8 +590,14 @@ export default function App() {
         onEdit={handleEditSuratKeluar}
         onDelete={handleDeleteSuratKeluar}
         onViewDocument={(s) => {
-          if (s.fileDoc) handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratLengkap);
+          if (s.fileDoc) {
+            handleOpenDocViewer(s.fileDoc, s.perihal, s.nomorSuratLengkap, {
+              onEditBerkas: () => handleOpenEditBerkasSuratKeluar(s),
+              onEditData: () => handleEditSuratKeluar(s),
+            });
+          }
         }}
+        onEditBerkas={handleOpenEditBerkasSuratKeluar}
       />
 
       {/* 7. Surat Keputusan Add/Edit Modal */}
@@ -492,10 +610,14 @@ export default function App() {
         onSaved={refreshData}
       />
 
-      {/* 8. Arsip Digital Modal */}
+      {/* 8. Arsip Digital Add/Edit Modal */}
       <ArsipDigitalModal
         isOpen={isArsipModalOpen}
-        onClose={() => setIsArsipModalOpen(false)}
+        onClose={() => {
+          setIsArsipModalOpen(false);
+          setArsipToEdit(null);
+        }}
+        arsipToEdit={arsipToEdit}
         currentUser={currentUser}
         onSaved={refreshData}
       />
@@ -508,6 +630,9 @@ export default function App() {
         title={previewTitle}
         nomorSurat={previewNomor}
         settings={settings}
+        canEdit={currentUser.role === 'admin'}
+        onEditBerkas={docViewerActions.onEditBerkas}
+        onEditData={docViewerActions.onEditData}
       />
 
       {/* 10. Administrator Password Login Modal */}
@@ -517,6 +642,26 @@ export default function App() {
         onSuccess={handleLoginSuccess}
         settings={settings}
       />
+
+      {/* 11. Edit / Koreksi Berkas Modal */}
+      {targetBerkas && (
+        <EditBerkasModal
+          isOpen={isEditBerkasOpen}
+          onClose={() => {
+            setIsEditBerkasOpen(false);
+            setTargetBerkas(null);
+          }}
+          tipe={targetBerkas.tipe}
+          itemTitle={targetBerkas.itemTitle}
+          itemSubtitle={targetBerkas.itemSubtitle}
+          currentFile={targetBerkas.currentFile}
+          currentUser={currentUser}
+          onSave={handleSaveEditBerkas}
+          onPreview={(file) => {
+            handleOpenDocViewer(file, targetBerkas.itemTitle, targetBerkas.itemSubtitle);
+          }}
+        />
+      )}
     </div>
   );
 }

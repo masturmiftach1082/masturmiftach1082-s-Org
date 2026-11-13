@@ -12,6 +12,8 @@ import {
   Calendar,
   ShieldCheck,
   Send,
+  RefreshCw,
+  UploadCloud,
 } from 'lucide-react';
 
 interface SuratKeluarDetailModalProps {
@@ -23,6 +25,7 @@ interface SuratKeluarDetailModalProps {
   onEdit: (surat: SuratKeluar) => void;
   onDelete: (id: string) => void;
   onViewDocument: (surat: SuratKeluar) => void;
+  onEditBerkas?: (surat: SuratKeluar) => void;
 }
 
 export default function SuratKeluarDetailModal({
@@ -34,6 +37,7 @@ export default function SuratKeluarDetailModal({
   onEdit,
   onDelete,
   onViewDocument,
+  onEditBerkas,
 }: SuratKeluarDetailModalProps) {
   if (!isOpen || !surat) return null;
 
@@ -207,12 +211,31 @@ export default function SuratKeluarDetailModal({
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Buka di Drive
                   </a>
+                  {canManage && onEditBerkas && (
+                    <button
+                      onClick={() => onEditBerkas(surat)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md transition-colors shadow-2xs cursor-pointer"
+                      title="Ganti berkas jika salah unggah"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-800" /> Edit / Ganti Berkas
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
-              <p className="text-slate-500 italic">
-                Belum ada pindaian surat yang diunggah ke Google Drive.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-100/60 border border-dashed border-slate-300 rounded-lg">
+                <p className="text-slate-500 italic text-xs">
+                  Belum ada pindaian surat yang diunggah ke Google Drive.
+                </p>
+                {canManage && onEditBerkas && (
+                  <button
+                    onClick={() => onEditBerkas(surat)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-md transition-colors cursor-pointer"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-emerald-800" /> + Lampirkan Berkas
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

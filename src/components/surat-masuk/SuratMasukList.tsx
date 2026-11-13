@@ -13,6 +13,9 @@ import {
   HardDrive,
   FileText,
   Filter,
+  Paperclip,
+  RefreshCw,
+  Lock,
 } from 'lucide-react';
 
 interface SuratMasukListProps {
@@ -26,6 +29,8 @@ interface SuratMasukListProps {
   onOpenDisposisi: (surat: SuratMasuk) => void;
   onPrintDisposisi: (surat: SuratMasuk) => void;
   onPrintAgendaBook: () => void;
+  onEditBerkas?: (surat: SuratMasuk) => void;
+  onOpenLoginModal?: () => void;
 }
 
 export default function SuratMasukList({
@@ -39,6 +44,8 @@ export default function SuratMasukList({
   onOpenDisposisi,
   onPrintDisposisi,
   onPrintAgendaBook,
+  onEditBerkas,
+  onOpenLoginModal,
 }: SuratMasukListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState<string>('2026');
@@ -149,6 +156,27 @@ export default function SuratMasukList({
         </div>
       </div>
 
+      {/* Mode Hanya Lihat Info Banner */}
+      {!canManage && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>
+              <strong>Mode Hanya Lihat:</strong> Masuk sebagai Administrator untuk menambah, mengedit data surat, mengganti berkas lampiran, atau memberi disposisi.
+            </span>
+          </div>
+          {onOpenLoginModal && (
+            <button
+              type="button"
+              onClick={onOpenLoginModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg border border-amber-400 shadow-2xs shrink-0 cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5" /> Masuk Admin untuk Edit
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter & Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5 p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
         {/* Search */}
@@ -225,7 +253,7 @@ export default function SuratMasukList({
                 <th className="py-3 px-4 w-28">Status & Sifat</th>
                 <th className="py-3 px-4 w-24 text-center">Disposisi</th>
                 <th className="py-3 px-4 w-20 text-center">Arsip</th>
-                <th className="py-3 px-4 w-32 text-right">Aksi</th>
+                <th className="py-3 px-4 w-48 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -294,12 +322,24 @@ export default function SuratMasukList({
                     {/* Google Drive Doc */}
                     <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                       {surat.fileDoc ? (
-                        <span
-                          title={`Tersimpan di Google Drive: ${surat.fileDoc.fileName}`}
-                          className="inline-flex items-center justify-center w-6 h-6 rounded bg-emerald-50 text-emerald-700"
+                        <button
+                          type="button"
+                          onClick={() => (onEditBerkas ? onEditBerkas(surat) : onViewDetail(surat))}
+                          title={`Dokumen: ${surat.fileDoc.fileName} - Klik untuk buka / edit berkas`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-amber-100 hover:text-amber-950 hover:border-amber-300 transition-colors cursor-pointer group/file"
                         >
-                          <HardDrive className="w-3.5 h-3.5" />
-                        </span>
+                          <HardDrive className="w-3 h-3 text-emerald-700 group-hover/file:text-amber-800" />
+                          <span>Ada</span>
+                        </button>
+                      ) : canManage && onEditBerkas ? (
+                        <button
+                          type="button"
+                          onClick={() => onEditBerkas(surat)}
+                          title="Lampirkan berkas dokumen digital"
+                          className="text-[10px] font-medium text-slate-400 hover:text-emerald-700 hover:underline cursor-pointer"
+                        >
+                          + Berkas
+                        </button>
                       ) : (
                         <span className="text-slate-300">-</span>
                       )}
@@ -311,7 +351,7 @@ export default function SuratMasukList({
                         <button
                           onClick={() => onViewDetail(surat)}
                           title="Lihat Detail"
-                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded transition-colors"
+                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -319,11 +359,20 @@ export default function SuratMasukList({
                           <>
                             <button
                               onClick={() => onEdit(surat)}
-                              title="Ubah Data"
-                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
+                              title="Edit Data Surat & Lampiran"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded transition-colors cursor-pointer"
                             >
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3 h-3 text-emerald-700" /> Edit
                             </button>
+                            {onEditBerkas && (
+                              <button
+                                onClick={() => onEditBerkas(surat)}
+                                title="Edit / Ganti Berkas Lampiran (Koreksi salah unggah)"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition-colors cursor-pointer"
+                              >
+                                <Paperclip className="w-3 h-3" /> Berkas
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 if (confirm(`Hapus Surat Masuk Agenda #${surat.nomorAgenda}? Nomor agenda tidak akan dipakai ulang.`)) {
@@ -331,7 +380,7 @@ export default function SuratMasukList({
                                 }
                               }}
                               title="Hapus"
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

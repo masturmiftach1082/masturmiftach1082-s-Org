@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { SuratMasuk, SifatSurat, StatusSuratMasuk, UserProfile } from '../../types';
 import { storageService } from '../../services/storageService';
-import { isGoogleDriveConnected } from '../../services/googleAuthService';
-import { uploadFileToGoogleDrive } from '../../services/googleDriveService';
-import { X, Save, UploadCloud, FileText, CheckCircle2, Loader2, HardDrive, ExternalLink } from 'lucide-react';
+import { isAnyDriveUploadConnected, uploadFileSmart } from '../../services/googleDriveService';
+import { X, Save, UploadCloud, FileText, CheckCircle2, Loader2, HardDrive, ExternalLink, RefreshCw, Trash2, Link2 } from 'lucide-react';
 
 interface SuratMasukModalProps {
   isOpen: boolean;
@@ -68,6 +67,8 @@ export default function SuratMasukModal({
   const [isUploadingDrive, setIsUploadingDrive] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [isSimulatedUpload, setIsSimulatedUpload] = useState(false);
+  const [isFileRemoved, setIsFileRemoved] = useState(false);
+  const [fileDataBase64, setFileDataBase64] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (suratToEdit) {
@@ -86,6 +87,7 @@ export default function SuratMasukModal({
       setTujuanInternal(suratToEdit.tujuanInternal);
       setStatus(suratToEdit.status);
       setCatatan(suratToEdit.catatan || '');
+      setIsFileRemoved(false);
 
       if (suratToEdit.fileDoc) {
         setFileName(suratToEdit.fileDoc.fileName);
@@ -93,6 +95,14 @@ export default function SuratMasukModal({
         setFileType(suratToEdit.fileDoc.fileType);
         setDriveFileId(suratToEdit.fileDoc.fileId);
         setDriveUrl(suratToEdit.fileDoc.driveUrl || '');
+        setFileDataBase64(suratToEdit.fileDoc.dataBase64);
+      } else {
+        setFileName('');
+        setFileSize(0);
+        setFileType('application/pdf');
+        setDriveFileId('');
+        setDriveUrl('');
+        setFileDataBase64(undefined);
       }
     } else {
       // Calculate next agenda number for current year
@@ -121,6 +131,7 @@ export default function SuratMasukModal({
       setDriveUrl('');
       setUploadNotice(null);
       setIsSimulatedUpload(false);
+      setIsFileRemoved(false);
     }
   }, [suratToEdit, isOpen]);
 
@@ -130,15 +141,23 @@ export default function SuratMasukModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsFileRemoved(false);
     setFileName(file.name);
     setFileSize(file.size);
     setFileType(file.type || 'application/pdf');
     setUploadNotice(null);
 
-    if (isGoogleDriveConnected()) {
+    // Read base64 for direct device preview
+    if (file.size <= 5 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => setFileDataBase64(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+
+    if (isAnyDriveUploadConnected()) {
       setIsUploadingDrive(true);
       try {
-        const meta = await uploadFileToGoogleDrive(file, 'Surat Masuk', perihal || file.name);
+        const meta = await uploadFileSmart(file, 'Surat Masuk', perihal || file.name);
         setDriveFileId(meta.fileId);
         setDriveUrl(meta.driveUrl);
         setIsSimulatedUpload(false);
@@ -148,7 +167,7 @@ export default function SuratMasukModal({
         const randomDriveId = `1gdrive-in-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
         setDriveFileId(randomDriveId);
         setIsSimulatedUpload(true);
-        setUploadNotice('Tersimpan di metadata SIPAS');
+        setUploadNotice('Tersimpan di pangkalan data cloud SIPAS');
       } finally {
         setIsUploadingDrive(false);
       }
@@ -156,6 +175,19 @@ export default function SuratMasukModal({
       const randomDriveId = `1gdrive-in-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
       setDriveFileId(randomDriveId);
       setIsSimulatedUpload(true);
+      setUploadNotice('Berkas tersimpan & tersinkronisasi di cloud');
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    if (window.confirm('Yakin ingin melepas berkas lampiran ini? Klik Simpan setelah ini untuk memperbarui.')) {
+      setIsFileRemoved(true);
+      setFileName('');
+      setFileSize(0);
+      setDriveFileId('');
+      setDriveUrl('');
+      setFileDataBase64(undefined);
+      setUploadNotice('Berkas lampiran telah dilepas.');
     }
   };
 
@@ -167,7 +199,9 @@ export default function SuratMasukModal({
       return;
     }
 
-    const fileDoc = fileName
+    const finalFileDoc = isFileRemoved
+      ? undefined
+      : fileName
       ? {
           fileId: driveFileId || `1gdrive-file-${Date.now()}`,
           folderId: '1-GDRIVE-INCOMING-SOBOREJO-2026',
@@ -178,6 +212,7 @@ export default function SuratMasukModal({
           downloadUrl: `https://drive.google.com/uc?id=${driveFileId || 'default'}&export=download`,
           uploadedAt: new Date().toISOString(),
           textContent: ringkasan || perihal,
+          dataBase64: fileDataBase64,
         }
       : undefined;
 
@@ -199,7 +234,7 @@ export default function SuratMasukModal({
           tujuanInternal,
           status,
           catatan: catatan.trim(),
-          fileDoc: fileDoc || suratToEdit.fileDoc,
+          fileDoc: finalFileDoc,
         },
         currentUser
       );
@@ -218,7 +253,7 @@ export default function SuratMasukModal({
           tujuanInternal,
           status,
           catatan: catatan.trim(),
-          fileDoc,
+          fileDoc: finalFileDoc,
           createdBy: currentUser.name,
           customNomorAgenda: finalAgenda,
         },
@@ -500,7 +535,7 @@ export default function SuratMasukModal({
                   Lampiran Berkas Google Drive (Arsip Digital)
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  {isGoogleDriveConnected()
+                  {isAnyDriveUploadConnected()
                     ? '🟢 Google Drive terhubung otomatis: berkas akan langsung diunggah ke Google Drive madrasah.'
                     : 'Dokumen fisik/digital disimpan pada Google Drive madrasah.'}
                 </span>
@@ -529,11 +564,11 @@ export default function SuratMasukModal({
               </div>
             )}
 
-            {fileName && !isUploadingDrive && (
-              <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded text-xs mt-2">
+            {fileName && !isFileRemoved && !isUploadingDrive && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-slate-200 rounded-lg text-xs mt-2 shadow-2xs">
                 <div className="flex items-center gap-2 truncate">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-medium text-slate-800 truncate">{fileName}</span>
+                  <span className="font-semibold text-slate-800 truncate">{fileName}</span>
                   <span className="text-slate-400 font-mono text-[11px]">
                     ({(fileSize / 1024).toFixed(0)} KB)
                   </span>
@@ -554,14 +589,78 @@ export default function SuratMasukModal({
                       <ExternalLink className="w-3 h-3" /> Buka di Drive
                     </a>
                   )}
-                  {driveFileId && (
-                    <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
-                      ID: {driveFileId.slice(0, 14)}...
-                    </span>
-                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-950 bg-amber-100 hover:bg-amber-200 rounded transition-colors shadow-2xs" title="Pilih berkas baru untuk mengganti berkas yang salah">
+                    <RefreshCw className="w-3 h-3 text-amber-800" />
+                    <span>Ganti Berkas</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachment}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors cursor-pointer"
+                    title="Hapus / Lepas berkas lampiran"
+                  >
+                    <Trash2 className="w-3 h-3" /> Lepas
+                  </button>
                 </div>
               </div>
             )}
+
+            {isFileRemoved && (
+              <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 mt-2">
+                <span>Berkas lampiran telah dilepas. Klik Simpan untuk memperbarui data surat.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFileRemoved(false);
+                    if (suratToEdit?.fileDoc) {
+                      setFileName(suratToEdit.fileDoc.fileName);
+                      setFileSize(suratToEdit.fileDoc.fileSize);
+                      setFileType(suratToEdit.fileDoc.fileType);
+                      setDriveFileId(suratToEdit.fileDoc.fileId);
+                      setDriveUrl(suratToEdit.fileDoc.driveUrl || '');
+                    }
+                  }}
+                  className="text-xs font-semibold text-amber-950 underline hover:text-black cursor-pointer"
+                >
+                  Batal Lepas
+                </button>
+              </div>
+            )}
+
+            {/* Inline Tautan Google Drive */}
+            <div className="pt-2 border-t border-slate-200 mt-2">
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Link2 className="w-3.5 h-3.5 text-emerald-700" />
+                Tautan Berkas Google Drive (Opsional — Edit / Tempel Link Langsung)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={driveUrl}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDriveUrl(val);
+                    if (val.trim()) {
+                      setIsFileRemoved(false);
+                      const idMatch = val.match(/\/d\/([a-zA-Z0-9_-]+)/) || val.match(/id=([a-zA-Z0-9_-]+)/);
+                      if (idMatch) setDriveFileId(idMatch[1]);
+                      if (!fileName) {
+                        setFileName(`Lampiran_${nomorSuratPengirim || 'Surat_Masuk'}.pdf`);
+                        setFileSize(102400);
+                      }
+                    }
+                  }}
+                  placeholder="https://drive.google.com/file/d/.../view"
+                  className="flex-1 px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Modal Actions */}

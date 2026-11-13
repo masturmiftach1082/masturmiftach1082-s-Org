@@ -8,6 +8,7 @@ import {
   UserProfile,
   ActivityLog,
   Disposisi,
+  DocumentFile,
 } from '../types';
 import {
   initialMadrasahSettings,
@@ -123,6 +124,14 @@ class StorageService {
         url: saved.supabaseConfig?.url || initialMadrasahSettings.supabaseConfig.url,
         anonKey: saved.supabaseConfig?.anonKey || initialMadrasahSettings.supabaseConfig.anonKey,
         isConnected: true,
+      },
+      googleDriveConfig: {
+        ...initialMadrasahSettings.googleDriveConfig,
+        ...(saved.googleDriveConfig || {}),
+        driveFolderUrl: saved.googleDriveConfig?.driveFolderUrl || initialMadrasahSettings.googleDriveConfig.driveFolderUrl,
+        serviceAccountEmail: saved.googleDriveConfig?.serviceAccountEmail || initialMadrasahSettings.googleDriveConfig.serviceAccountEmail,
+        appsScriptUrl: saved.googleDriveConfig?.appsScriptUrl || '',
+        activeMode: saved.googleDriveConfig?.activeMode || (saved.googleDriveConfig?.appsScriptUrl ? 'apps-script' : 'folder-link'),
       },
     };
   }
@@ -914,6 +923,159 @@ class StorageService {
       supabase.from('arsip_digital').delete().eq('id', id).then(({ error }) => {
         if (error) console.info('Supabase arsip delete notice:', error.message);
       });
+    }
+  }
+
+  updateArsipDigital(id: string, updates: Partial<ArsipDigital>, user: UserProfile): ArsipDigital {
+    const all = this.getArsipDigital();
+    const idx = all.findIndex((a) => a.id === id);
+    if (idx === -1) throw new Error('Arsip tidak ditemukan');
+
+    const existing = all[idx];
+    const updated: ArsipDigital = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    all[idx] = updated;
+    this.set(STORAGE_KEYS.ARSIP, all);
+
+    this.logActivity(
+      user,
+      'Pembaruan Arsip',
+      'Arsip Digital',
+      updated.id,
+      `Memperbarui arsip "${updated.judulArsip}"`
+    );
+
+    if (supabase) {
+      supabase.from('arsip_digital').update({
+        kode_arsip: updated.kodeArsip,
+        judul_arsip: updated.judulArsip,
+        kategori: updated.kategori,
+        tahun: updated.tahun,
+        nomor_dokumen_terkait: updated.nomorDokumenTerait || '',
+        deskripsi: updated.deskripsi || '',
+        tags: updated.tags || [],
+        file_doc: updated.fileDoc || null,
+        lokasi_fisik: updated.lokasiFisik || '',
+        updated_at: updated.updatedAt,
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase arsip update notice:', error.message);
+      });
+    }
+
+    return updated;
+  }
+
+  updateLampiranBerkas(
+    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip',
+    id: string,
+    fileDoc: DocumentFile | undefined,
+    user: UserProfile
+  ): void {
+    const now = new Date().toISOString();
+    if (tipe === 'surat-masuk') {
+      const all = this.getSuratMasuk();
+      const idx = all.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        all[idx] = {
+          ...all[idx],
+          fileDoc,
+          updatedAt: now,
+        };
+        this.set(STORAGE_KEYS.SURAT_MASUK, all);
+        this.logActivity(
+          user,
+          'Koreksi Berkas Lampiran',
+          'Surat Masuk',
+          id,
+          fileDoc
+            ? `Memperbarui berkas dokumen Agenda #${all[idx].nomorAgenda}: "${fileDoc.fileName}"`
+            : `Menghapus berkas lampiran dari Agenda #${all[idx].nomorAgenda}`
+        );
+        if (supabase) {
+          supabase.from('surat_masuk').update({ file_doc: fileDoc || null, updated_at: now }).eq('id', id).then();
+        }
+      }
+    } else if (tipe === 'surat-keluar') {
+      const all = this.getSuratKeluar();
+      const idx = all.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        all[idx] = {
+          ...all[idx],
+          fileDoc,
+          updatedAt: now,
+        };
+        this.set(STORAGE_KEYS.SURAT_KELUAR, all);
+        this.logActivity(
+          user,
+          'Koreksi Berkas Lampiran',
+          'Surat Keluar',
+          id,
+          fileDoc
+            ? `Memperbarui berkas dokumen Surat Keluar ${all[idx].nomorSuratLengkap}: "${fileDoc.fileName}"`
+            : `Menghapus berkas lampiran dari Surat Keluar ${all[idx].nomorSuratLengkap}`
+        );
+        if (supabase) {
+          supabase.from('surat_keluar').update({ file_doc: fileDoc || null, updated_at: now }).eq('id', id).then();
+        }
+      }
+    } else if (tipe === 'surat-keputusan') {
+      const all = this.getSuratKeputusan();
+      const idx = all.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        all[idx] = {
+          ...all[idx],
+          fileDoc,
+          updatedAt: now,
+        };
+        this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, all);
+        this.logActivity(
+          user,
+          'Koreksi Berkas Lampiran',
+          'Surat Keputusan',
+          id,
+          fileDoc
+            ? `Memperbarui berkas dokumen SK ${all[idx].nomorSK}: "${fileDoc.fileName}"`
+            : `Menghapus berkas lampiran dari SK ${all[idx].nomorSK}`
+        );
+        if (supabase) {
+          supabase.from('surat_keputusan').update({ file_doc: fileDoc || null, updated_at: now }).eq('id', id).then();
+        }
+      }
+    } else if (tipe === 'arsip') {
+      const all = this.getArsipDigital();
+      const idx = all.findIndex((a) => a.id === id);
+      if (idx !== -1) {
+        all[idx] = {
+          ...all[idx],
+          fileDoc: fileDoc || {
+            fileId: `arsip-empty-${Date.now()}`,
+            fileName: 'Tanpa Berkas',
+            fileType: 'application/pdf',
+            fileSize: 0,
+            driveUrl: '',
+            uploadedAt: now,
+          },
+          updatedAt: now,
+        };
+        this.set(STORAGE_KEYS.ARSIP, all);
+        this.logActivity(
+          user,
+          'Koreksi Berkas Lampiran',
+          'Arsip Digital',
+          id,
+          fileDoc
+            ? `Memperbarui berkas dokumen Arsip "${all[idx].judulArsip}": "${fileDoc.fileName}"`
+            : `Mengosongkan berkas dokumen Arsip "${all[idx].judulArsip}"`
+        );
+        if (supabase) {
+          supabase.from('arsip_digital').update({ file_doc: all[idx].fileDoc, updated_at: now }).eq('id', id).then();
+        }
+      }
     }
   }
 
