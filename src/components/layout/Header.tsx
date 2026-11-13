@@ -6,7 +6,6 @@ import {
   Lock,
   LogOut,
   ShieldCheck,
-  Eye,
   RefreshCw,
   FolderOpen,
 } from 'lucide-react';
@@ -72,69 +71,65 @@ export default function Header({
 
       {/* Right: Date, Mode Status & Admin Login/Logout */}
       <div className="flex items-center gap-3">
-        {/* Date indicator */}
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-700 bg-amber-50/60 px-3 py-1.5 rounded-lg border border-amber-500/30">
-          <Calendar className="w-3.5 h-3.5 text-amber-600" />
-          <span className="font-medium">{todayFormatted}</span>
-        </div>
-
-        {/* Quick Google Drive Folder Access */}
-        {settings.googleDriveConfig?.driveFolderUrl && (
-          <a
-            href={settings.googleDriveConfig.driveFolderUrl}
-            target="_blank"
-            rel="noreferrer"
-            title="Buka Folder Google Drive MI Ma'arif Al Ihsan Soborejo (Tanpa Autentikasi Firebase)"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-950 bg-white hover:bg-emerald-50 rounded-lg border border-emerald-300 shadow-2xs transition-all active:scale-95"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-emerald-700" />
-            <span className="hidden xl:inline">Folder Drive Madrasah</span>
-            <span className="xl:hidden">Drive</span>
-          </a>
-        )}
-
-        {/* Live Multi-Device Cloud Sync Indicator */}
-        <button
-          type="button"
-          onClick={onManualSync}
-          title="Sinkronisasi Cloud Supabase Multi-Perangkat Aktif. Klik untuk memuat ulang data terbaru."
-          className="hidden lg:flex items-center gap-1.5 text-xs font-semibold text-emerald-950 bg-emerald-50/90 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer shadow-2xs"
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-          </span>
-          <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span className="text-[11px]">Multi-Perangkat Tersinkron</span>
-        </button>
-
-        {/* Mode Indicator & Auth Action */}
         {isAdmin ? (
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-amber-50/40 border border-amber-500/40 text-xs shadow-2xs">
-              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-              <div className="text-left leading-tight">
-                <span className="font-bold text-emerald-950 block">Administrator</span>
-                <span className="text-[10px] text-amber-800 font-semibold">Mode Kelola Penuh</span>
-              </div>
+          <>
+            {/* Date indicator */}
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-700 bg-amber-50/60 px-3 py-1.5 rounded-lg border border-amber-500/30">
+              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+              <span className="font-medium">{todayFormatted}</span>
             </div>
 
+            {/* Quick Google Drive Folder Access */}
+            {settings.googleDriveConfig?.driveFolderUrl && (
+              <a
+                href={settings.googleDriveConfig.driveFolderUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Buka Folder Google Drive MI Ma'arif Al Ihsan Soborejo (Tanpa Autentikasi Firebase)"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-950 bg-white hover:bg-emerald-50 rounded-lg border border-emerald-300 shadow-2xs transition-all active:scale-95"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="hidden xl:inline">Folder Drive Madrasah</span>
+                <span className="xl:hidden">Drive</span>
+              </a>
+            )}
+
+            {/* Live Multi-Device Cloud Sync Indicator */}
             <button
-              onClick={onLogout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
-              title="Keluar ke Mode Hanya Lihat"
+              type="button"
+              onClick={onManualSync}
+              title="Sinkronisasi Cloud Supabase Multi-Perangkat Aktif. Klik untuk memuat ulang data terbaru."
+              className="hidden lg:flex items-center gap-1.5 text-xs font-semibold text-emerald-950 bg-emerald-50/90 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer shadow-2xs"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Keluar</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+              </span>
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="text-[11px]">Multi-Perangkat Tersinkron</span>
             </button>
-          </div>
+
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-amber-50/40 border border-amber-500/40 text-xs shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <div className="text-left leading-tight">
+                  <span className="font-bold text-emerald-950 block">Administrator</span>
+                  <span className="text-[10px] text-amber-800 font-semibold">Mode Kelola Penuh</span>
+                </div>
+              </div>
+
+              <button
+                onClick={onLogout}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
+                title="Keluar ke Mode Hanya Lihat"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Keluar</span>
+              </button>
+            </div>
+          </>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 text-xs">
-              <Eye className="w-3.5 h-3.5 text-slate-500" />
-              <span className="font-medium text-[11px]">Mode Hanya Lihat</span>
-            </div>
-
             <button
               onClick={onOpenLoginModal}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-xl shadow-xs border border-amber-400/80 transition-all cursor-pointer"

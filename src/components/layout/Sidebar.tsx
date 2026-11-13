@@ -6,11 +6,9 @@ import {
   Award,
   Archive,
   BookOpen,
-  Users,
   Settings,
   ChevronLeft,
   ChevronRight,
-  LogOut,
   Shield,
   X,
 } from 'lucide-react';
@@ -38,6 +36,8 @@ export default function Sidebar({
   currentUser,
   pendingMasukCount,
 }: SidebarProps) {
+  const isAdmin = currentUser.role === 'admin';
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     {
@@ -50,8 +50,12 @@ export default function Sidebar({
     { id: 'surat-keputusan', label: 'Surat Keputusan', icon: Award },
     { id: 'arsip', label: 'Arsip Digital', icon: Archive },
     { id: 'laporan', label: 'Laporan & Agenda', icon: BookOpen },
-    { id: 'pengguna', label: 'Hak Akses Admin', icon: Shield },
-    { id: 'pengaturan', label: 'Pengaturan', icon: Settings },
+    ...(isAdmin
+      ? [
+          { id: 'pengguna', label: 'Hak Akses Admin', icon: Shield },
+          { id: 'pengaturan', label: 'Pengaturan', icon: Settings },
+        ]
+      : []),
   ];
 
   return (

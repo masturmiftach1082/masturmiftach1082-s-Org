@@ -177,6 +177,9 @@ export default function App() {
   const handleLogout = () => {
     storageService.logoutToViewer();
     setCurrentUser(storageService.getActiveUser());
+    if (currentTab === 'pengguna' || currentTab === 'pengaturan') {
+      setCurrentTab('dashboard');
+    }
     refreshData();
   };
 
@@ -484,7 +487,7 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'pengguna' && (
+          {currentTab === 'pengguna' && currentUser.role === 'admin' && (
             <PenggunaList
               users={allUsers}
               currentUser={currentUser}
@@ -494,7 +497,7 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'pengaturan' && (
+          {currentTab === 'pengaturan' && currentUser.role === 'admin' && (
             <PengaturanView
               settings={settings}
               currentUser={currentUser}
