@@ -57,7 +57,11 @@ export default function PengaturanView({
   const [newDesc, setNewDesc] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionResult, setConnectionResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [connectionResult, setConnectionResult] = useState<{
+    success: boolean;
+    message: string;
+    missingTables?: string[];
+  } | null>(null);
   const [copiedSQL, setCopiedSQL] = useState(false);
   const [showSQLSchema, setShowSQLSchema] = useState(false);
   const [syncingData, setSyncingData] = useState(false);
@@ -115,11 +119,19 @@ export default function PengaturanView({
     setSyncingData(false);
     if (res.success) {
       setSyncResult(
-        `Sinkronisasi berhasil: ${res.counts.suratMasuk} surat masuk, ${res.counts.suratKeluar} surat keluar, ${res.counts.suratKeputusan} SK, ${res.counts.arsip} arsip.`
+        `Sinkronisasi berhasil: ${res.counts.suratMasuk} surat masuk, ${res.counts.suratKeluar} surat keluar, ${res.counts.suratKeputusan} SK, ${res.counts.arsip} arsip, ${res.counts.pkkm} dokumen PKKM.`
       );
     } else {
       setSyncResult(res.message || 'Gagal sinkronisasi data dari Supabase.');
     }
+  };
+
+  const handlePushLocalToSupabase = async () => {
+    setSyncingData(true);
+    setSyncResult(null);
+    const res = await storageService.pushLocalDataToSupabase();
+    setSyncingData(false);
+    setSyncResult(res.message);
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -1233,6 +1245,19 @@ export default function PengaturanView({
                   {syncingData ? 'Sinkronisasi...' : 'Tarik Data Supabase'}
                 </button>
 
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handlePushLocalToSupabase}
+                    disabled={syncingData}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md transition-colors cursor-pointer"
+                    title="Kirim data lokal (termasuk PKKM & Kop Surat) yang belum tersinkron ke server Supabase"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Kirim Data Lokal ke Cloud
+                  </button>
+                )}
+
                 <a
                   href="https://supabase.com/dashboard/project/emdjxbjhrlqsficqyors"
                   target="_blank"
@@ -1247,15 +1272,19 @@ export default function PengaturanView({
               {connectionResult && (
                 <div
                   className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
-                    connectionResult.success
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                      : 'bg-red-50 border-red-300 text-red-900'
+                    !connectionResult.success
+                      ? 'bg-red-50 border-red-300 text-red-900'
+                      : connectionResult.missingTables && connectionResult.missingTables.length > 0
+                      ? 'bg-amber-50 border-amber-300 text-amber-950'
+                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
                   }`}
                 >
-                  {connectionResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  ) : (
+                  {!connectionResult.success ? (
                     <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  ) : connectionResult.missingTables && connectionResult.missingTables.length > 0 ? (
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   )}
                   <span>{connectionResult.message}</span>
                 </div>
@@ -1314,8 +1343,8 @@ export default function PengaturanView({
             </div>
 
             <p className="text-slate-600 text-[11px]">
-              Jika tabel di project Supabase <code className="bg-slate-200 px-1 py-0.5 rounded text-emerald-800 font-mono">emdjxbjhrlqsficqyors</code> belum dibuat,
-              buka <strong>Supabase SQL Editor</strong> lalu tempel dan jalankan (Run) skrip SQL ini untuk membuat struktur tabel <code>surat_masuk</code>, <code>surat_keluar</code>, <code>surat_keputusan</code>, <code>arsip_digital</code>, <code>pengaturan_madrasah</code>, dan <code>activity_logs</code>.
+              Jika tabel di project Supabase <code className="bg-slate-200 px-1 py-0.5 rounded text-emerald-800 font-mono">emdjxbjhrlqsficqyors</code> belum dibuat atau ada modul baru (seperti <code>pkkm_dokumen</code>),
+              buka <strong>Supabase SQL Editor</strong> lalu tempel dan jalankan (Run) skrip SQL ini untuk membuat atau memperbarui struktur tabel <code>surat_masuk</code>, <code>surat_keluar</code>, <code>surat_keputusan</code>, <code>arsip_digital</code>, <code>pkkm_dokumen</code>, <code>pengaturan_madrasah</code>, dan <code>activity_logs</code> beserta policy &amp; Realtime sync.
             </p>
 
             {showSQLSchema && (

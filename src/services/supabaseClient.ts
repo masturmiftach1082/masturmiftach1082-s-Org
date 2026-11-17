@@ -35,24 +35,63 @@ export const supabase = client;
 /**
  * Test connectivity with Supabase project
  */
-export async function testSupabaseConnection(): Promise<{ success: boolean; message: string }> {
+export async function testSupabaseConnection(): Promise<{
+  success: boolean;
+  message: string;
+  missingTables?: string[];
+}> {
   if (!supabase) {
     return { success: false, message: 'Klien Supabase belum diinisialisasi.' };
   }
   try {
-    // Attempt lightweight ping
-    const { error } = await supabase.from('surat_masuk').select('id').limit(1);
-    if (error) {
-      // Table might not exist yet in fresh Supabase project
-      if (error.code === '42P01') {
-        return {
-          success: true,
-          message: 'Terhubung ke Supabase! (Tabel database belum dibuat, silakan jalankan SQL Schema).',
-        };
-      }
-      return { success: false, message: error.message };
+    const tablesToCheck = [
+      'surat_masuk',
+      'surat_keluar',
+      'surat_keputusan',
+      'arsip_digital',
+      'pkkm_dokumen',
+      'pengaturan_madrasah',
+      'activity_logs',
+    ];
+
+    const results = await Promise.all(
+      tablesToCheck.map(async (table) => {
+        const { error } = await supabase!.from(table).select('id').limit(1);
+        return { table, error };
+      })
+    );
+
+    const missingTables = results
+      .filter(
+        ({ error }) =>
+          error &&
+          (error.code === '42P01' ||
+            error.code === 'PGRST205' ||
+            error.message?.toLowerCase().includes('does not exist') ||
+            error.message?.toLowerCase().includes('schema cache'))
+      )
+      .map(({ table }) => table);
+
+    if (missingTables.length > 0) {
+      return {
+        success: true,
+        missingTables,
+        message: `Terhubung ke Supabase, namun tabel berikut belum dibuat: ${missingTables.join(
+          ', '
+        )}. Salin dan jalankan (Run) Skrip SQL Schema terbaru di Supabase SQL Editor.`,
+      };
     }
-    return { success: true, message: 'Terhubung aktif dengan database Supabase PostgreSQL!' };
+
+    const firstUnexpectedErr = results.find(({ error }) => error)?.error;
+    if (firstUnexpectedErr) {
+      return { success: false, message: firstUnexpectedErr.message };
+    }
+
+    return {
+      success: true,
+      missingTables: [],
+      message: 'Terhubung aktif dengan seluruh tabel Supabase PostgreSQL (termasuk PKKM)!',
+    };
   } catch (e: any) {
     return { success: false, message: e.message || 'Gagal menghubungi server Supabase.' };
   }
@@ -64,6 +103,7 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
 export const SUPABASE_SQL_SCHEMA = `-- SKEMA DATABASE SIPAS MI MA'ARIF AL IHSAN SOBOREJO
 -- Jalankan di menu SQL Editor pada Dashboard Supabase Anda:
 -- https://supabase.com/dashboard/project/emdjxbjhrlqsficqyors/sql
+-- Catatan: Skrip ini aman dijalankan ulang (idempotent) pada database yang sudah ada.
 
 -- 1. Tabel Surat Masuk
 CREATE TABLE IF NOT EXISTS surat_masuk (
@@ -156,14 +196,37 @@ CREATE TABLE IF NOT EXISTS arsip_digital (
   created_by TEXT
 );
 
--- 5. Tabel Pengaturan Madrasah
+-- 5. Tabel Dokumen PKKM (Penilaian Kinerja Kepala Madrasah)
+CREATE TABLE IF NOT EXISTS pkkm_dokumen (
+  id TEXT PRIMARY KEY,
+  komponen_id TEXT NOT NULL,
+  sub_menu_id TEXT NOT NULL,
+  sub_item_id TEXT,
+  kode_dokumen TEXT NOT NULL,
+  judul_dokumen TEXT NOT NULL,
+  tahun_ajaran TEXT,
+  tahun INTEGER NOT NULL,
+  tanggal_dokumen DATE,
+  penanggung_jawab TEXT,
+  status_verifikasi TEXT NOT NULL DEFAULT 'Lengkap',
+  keterangan TEXT,
+  file_doc JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pkkm_dokumen_komponen ON pkkm_dokumen(komponen_id, sub_menu_id);
+CREATE INDEX IF NOT EXISTS idx_pkkm_dokumen_kode ON pkkm_dokumen(kode_dokumen);
+
+-- 6. Tabel Pengaturan Madrasah
 CREATE TABLE IF NOT EXISTS pengaturan_madrasah (
   id TEXT PRIMARY KEY DEFAULT 'default_setting',
   data JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Tabel Log Aktivitas
+-- 7. Tabel Log Aktivitas
 CREATE TABLE IF NOT EXISTS activity_logs (
   id TEXT PRIMARY KEY,
   user_id TEXT,
@@ -180,6 +243,7 @@ ALTER TABLE surat_masuk ENABLE ROW LEVEL SECURITY;
 ALTER TABLE surat_keluar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE surat_keputusan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arsip_digital ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pkkm_dokumen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pengaturan_madrasah ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
@@ -195,13 +259,16 @@ CREATE POLICY "Allow public read-write for SIPAS" ON surat_keputusan FOR ALL USI
 DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON arsip_digital;
 CREATE POLICY "Allow public read-write for SIPAS" ON arsip_digital FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON pkkm_dokumen;
+CREATE POLICY "Allow public read-write for SIPAS" ON pkkm_dokumen FOR ALL USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON pengaturan_madrasah;
 CREATE POLICY "Allow public read-write for SIPAS" ON pengaturan_madrasah FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public read-write for SIPAS" ON activity_logs;
 CREATE POLICY "Allow public read-write for SIPAS" ON activity_logs FOR ALL USING (true) WITH CHECK (true);
 
--- 7. Aktifkan Supabase Realtime untuk sinkronisasi instan multi-perangkat (Websocket Push)
+-- 8. Aktifkan Supabase Realtime untuk sinkronisasi instan multi-perangkat (Websocket Push)
 DO $$
 BEGIN
   BEGIN
@@ -215,6 +282,9 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN NULL; END;
   BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE arsip_digital;
+  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE pkkm_dokumen;
   EXCEPTION WHEN OTHERS THEN NULL; END;
   BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE pengaturan_madrasah;

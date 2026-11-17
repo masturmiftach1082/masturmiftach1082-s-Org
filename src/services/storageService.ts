@@ -1143,7 +1143,7 @@ class StorageService {
     if (supabase) {
       supabase
         .from('pkkm_dokumen')
-        .insert({
+        .upsert({
           id: newItem.id,
           komponen_id: newItem.komponenId,
           sub_menu_id: newItem.subMenuId,
@@ -1152,7 +1152,7 @@ class StorageService {
           judul_dokumen: newItem.judulDokumen,
           tahun_ajaran: newItem.tahunAjaran,
           tahun: newItem.tahun,
-          tanggal_dokumen: newItem.tanggalDokumen,
+          tanggal_dokumen: newItem.tanggalDokumen || null,
           penanggung_jawab: newItem.penanggungJawab,
           status_verifikasi: newItem.statusVerifikasi,
           keterangan: newItem.keterangan || '',
@@ -1162,7 +1162,7 @@ class StorageService {
           created_by: newItem.createdBy,
         })
         .then(({ error }) => {
-          if (error) console.info('Supabase PKKM insert notice:', error.message);
+          if (error) console.warn('Supabase PKKM insert notice:', error.message);
         });
     }
 
@@ -1197,7 +1197,8 @@ class StorageService {
     if (supabase) {
       supabase
         .from('pkkm_dokumen')
-        .update({
+        .upsert({
+          id: updated.id,
           komponen_id: updated.komponenId,
           sub_menu_id: updated.subMenuId,
           sub_item_id: updated.subItemId || null,
@@ -1205,16 +1206,17 @@ class StorageService {
           judul_dokumen: updated.judulDokumen,
           tahun_ajaran: updated.tahunAjaran,
           tahun: updated.tahun,
-          tanggal_dokumen: updated.tanggalDokumen,
+          tanggal_dokumen: updated.tanggalDokumen || null,
           penanggung_jawab: updated.penanggungJawab,
           status_verifikasi: updated.statusVerifikasi,
           keterangan: updated.keterangan || '',
           file_doc: updated.fileDoc || null,
+          created_at: updated.createdAt,
           updated_at: updated.updatedAt,
+          created_by: updated.createdBy,
         })
-        .eq('id', id)
         .then(({ error }) => {
-          if (error) console.info('Supabase PKKM update notice:', error.message);
+          if (error) console.warn('Supabase PKKM update notice:', error.message);
         });
     }
 
@@ -1422,15 +1424,196 @@ class StorageService {
   }
 
   // --- REALTIME SYNC FROM SUPABASE ---
+  async pushLocalDataToSupabase(): Promise<{
+    success: boolean;
+    message: string;
+    pushed: { settings: boolean; suratMasuk: number; suratKeluar: number; suratKeputusan: number; arsip: number; pkkm: number };
+  }> {
+    if (!supabase) {
+      return {
+        success: false,
+        message: 'Klien Supabase tidak aktif.',
+        pushed: { settings: false, suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0, pkkm: 0 },
+      };
+    }
+
+    try {
+      const settings = this.getSettings();
+      const smList = this.getSuratMasuk();
+      const skelList = this.getSuratKeluar();
+      const skList = this.getSuratKeputusan();
+      const arsipList = this.getArsipDigital();
+      const pkkmList = this.getPkkmDokumen();
+
+      const { error: settErr } = await supabase
+        .from('pengaturan_madrasah')
+        .upsert({ id: 'default_setting', data: settings, updated_at: new Date().toISOString() });
+      if (settErr) throw new Error(`Gagal kirim pengaturan_madrasah: ${settErr.message}`);
+
+      if (smList.length > 0) {
+        const { error } = await supabase.from('surat_masuk').upsert(
+          smList.map((s) => ({
+            id: s.id,
+            nomor_agenda: s.nomorAgenda || '001',
+            tahun_agenda: s.tahunAgenda || new Date().getFullYear(),
+            nomor_surat_pengirim: s.nomorSuratPengirim || '-',
+            tanggal_surat: s.tanggalSurat || new Date().toISOString().split('T')[0],
+            tanggal_diterima: s.tanggalDiterima || new Date().toISOString().split('T')[0],
+            pengirim: s.pengirim || '-',
+            perihal: s.perihal || '-',
+            ringkasan: s.ringkasan || '',
+            kategori: s.kategori || 'Dinas / Resmi',
+            sifat: s.sifat || 'Biasa',
+            tujuan_internal: s.tujuanInternal || '',
+            status: s.status || 'Baru Diterima',
+            catatan: s.catatan || '',
+            file_doc: s.fileDoc || null,
+            disposisi: s.disposisi || null,
+            created_at: s.createdAt || new Date().toISOString(),
+            updated_at: s.updatedAt || new Date().toISOString(),
+            created_by: s.createdBy || 'Administrator',
+          }))
+        );
+        if (error) throw new Error(`Gagal kirim surat_masuk: ${error.message}`);
+      }
+
+      if (skelList.length > 0) {
+        const { error } = await supabase.from('surat_keluar').upsert(
+          skelList.map((s) => ({
+            id: s.id,
+            nomor_urut: s.nomorUrut || 1,
+            nomor_surat_lengkap: s.nomorSuratLengkap,
+            tahun_surat: s.tahunSurat || new Date().getFullYear(),
+            bulan_surat: s.bulanSurat || '01',
+            kode_klasifikasi: s.kodeKlasifikasi || 'PP.00',
+            tanggal_surat: s.tanggalSurat || new Date().toISOString().split('T')[0],
+            tujuan_surat: s.tujuanSurat || '-',
+            nama_penerima: s.namaPenerima || '',
+            jabatan_penerima: s.jabatanPenerima || '',
+            alamat_penerima: s.alamatPenerima || '',
+            perihal: s.perihal || '-',
+            ringkasan: s.ringkasan || '',
+            kategori: s.kategori || 'Kurikulum',
+            sifat: s.sifat || 'Biasa',
+            status: s.status || 'Telah Dikirim',
+            catatan: s.catatan || '',
+            file_doc: s.fileDoc || null,
+            created_at: s.createdAt || new Date().toISOString(),
+            updated_at: s.updatedAt || new Date().toISOString(),
+            created_by: s.createdBy || 'Administrator',
+          }))
+        );
+        if (error) throw new Error(`Gagal kirim surat_keluar: ${error.message}`);
+      }
+
+      if (skList.length > 0) {
+        const { error } = await supabase.from('surat_keputusan').upsert(
+          skList.map((sk) => ({
+            id: sk.id,
+            nomor_sk: sk.nomorSK,
+            nomor_urut: sk.nomorUrut || 1,
+            tahun: sk.tahun || new Date().getFullYear(),
+            judul: sk.judul || '-',
+            tentang: sk.tentang || '-',
+            tanggal_sk: sk.tanggalSK || new Date().toISOString().split('T')[0],
+            tahun_pelajaran: sk.tahunPelajaran || '2025/2026',
+            penandatangan: sk.penandatangan || 'Kepala Madrasah',
+            jabatan_penandatangan: sk.jabatanPenandatangan || 'Kepala Madrasah',
+            status: sk.status || 'Berlaku',
+            ringkasan: sk.ringkasan || '',
+            file_doc: sk.fileDoc || null,
+            created_at: sk.createdAt || new Date().toISOString(),
+            updated_at: sk.updatedAt || new Date().toISOString(),
+            created_by: sk.createdBy || 'Administrator',
+          }))
+        );
+        if (error) throw new Error(`Gagal kirim surat_keputusan: ${error.message}`);
+      }
+
+      if (arsipList.length > 0) {
+        const { error } = await supabase.from('arsip_digital').upsert(
+          arsipList.map((a) => ({
+            id: a.id,
+            kode_arsip: a.kodeArsip,
+            judul_arsip: a.judulArsip || '-',
+            kategori: a.kategori || 'Umum',
+            tahun: a.tahun || new Date().getFullYear(),
+            nomor_dokumen_terkait: a.nomorDokumenTerait || '',
+            deskripsi: a.deskripsi || '',
+            tags: a.tags || [],
+            file_doc: a.fileDoc,
+            lokasi_fisik: a.lokasiFisik || '',
+            created_at: a.createdAt || new Date().toISOString(),
+            updated_at: a.updatedAt || new Date().toISOString(),
+            created_by: a.createdBy || 'Administrator',
+          }))
+        );
+        if (error) throw new Error(`Gagal kirim arsip_digital: ${error.message}`);
+      }
+
+      if (pkkmList.length > 0) {
+        const { error } = await supabase.from('pkkm_dokumen').upsert(
+          pkkmList.map((d) => ({
+            id: d.id,
+            komponen_id: d.komponenId,
+            sub_menu_id: d.subMenuId,
+            sub_item_id: d.subItemId || null,
+            kode_dokumen: d.kodeDokumen,
+            judul_dokumen: d.judulDokumen,
+            tahun_ajaran: d.tahunAjaran || '2025/2026',
+            tahun: d.tahun || new Date().getFullYear(),
+            tanggal_dokumen: d.tanggalDokumen || null,
+            penanggung_jawab: d.penanggungJawab || 'Kepala Madrasah',
+            status_verifikasi: d.statusVerifikasi || 'Lengkap',
+            keterangan: d.keterangan || '',
+            file_doc: d.fileDoc || null,
+            created_at: d.createdAt || new Date().toISOString(),
+            updated_at: d.updatedAt || new Date().toISOString(),
+            created_by: d.createdBy || 'Administrator',
+          }))
+        );
+        if (error) {
+          throw new Error(
+            `Tabel pkkm_dokumen belum siap di Supabase (${error.message}). Jalankan terlebih dahulu Skrip SQL Schema terbaru di Supabase SQL Editor.`
+          );
+        }
+        try {
+          localStorage.setItem('sipas_pkkm_supabase_synced', 'true');
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        success: true,
+        message: `Berhasil mengunggah data lokal ke Supabase: ${smList.length} surat masuk, ${skelList.length} surat keluar, ${skList.length} SK, ${arsipList.length} arsip, ${pkkmList.length} dokumen PKKM & pengaturan kop surat.`,
+        pushed: {
+          settings: true,
+          suratMasuk: smList.length,
+          suratKeluar: skelList.length,
+          suratKeputusan: skList.length,
+          arsip: arsipList.length,
+          pkkm: pkkmList.length,
+        },
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: e?.message || 'Gagal mengirim data lokal ke Supabase.',
+        pushed: { settings: false, suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0, pkkm: 0 },
+      };
+    }
+  }
+
   async syncFromSupabase(): Promise<{
     success: boolean;
-    counts: { suratMasuk: number; suratKeluar: number; suratKeputusan: number; arsip: number };
+    counts: { suratMasuk: number; suratKeluar: number; suratKeputusan: number; arsip: number; pkkm: number };
     message?: string;
   }> {
     if (!supabase) {
       return {
         success: false,
-        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0 },
+        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0, pkkm: 0 },
         message: 'Klien Supabase tidak aktif',
       };
     }
@@ -1653,6 +1836,7 @@ class StorageService {
       }
 
       // 5. Fetch pkkm_dokumen (if table exists in Supabase)
+      let countPkkm = 0;
       try {
         const { data: remotePkkm, error: pkkmErr } = await supabase
           .from('pkkm_dokumen')
@@ -1678,17 +1862,66 @@ class StorageService {
             updatedAt: r.updated_at || r.created_at,
             createdBy: r.created_by || 'Administrator',
           }));
+
+          const localPkkm = this.getPkkmDokumen();
+          const hasSyncedPkkmBefore = (() => {
+            try {
+              return localStorage.getItem('sipas_pkkm_supabase_synced') === 'true';
+            } catch {
+              return false;
+            }
+          })();
+
+          // First time pkkm_dokumen table is detected on Supabase: preserve & auto-push pre-existing local PKKM docs
+          const unsyncedPreExisting = !hasSyncedPkkmBefore
+            ? localPkkm.filter((localItem) => !mappedPkkm.some((m) => m.id === localItem.id))
+            : [];
+
+          if (unsyncedPreExisting.length > 0) {
+            await supabase.from('pkkm_dokumen').upsert(
+              unsyncedPreExisting.map((d) => ({
+                id: d.id,
+                komponen_id: d.komponenId,
+                sub_menu_id: d.subMenuId,
+                sub_item_id: d.subItemId || null,
+                kode_dokumen: d.kodeDokumen,
+                judul_dokumen: d.judulDokumen,
+                tahun_ajaran: d.tahunAjaran || '2025/2026',
+                tahun: d.tahun || new Date().getFullYear(),
+                tanggal_dokumen: d.tanggalDokumen || null,
+                penanggung_jawab: d.penanggungJawab || 'Kepala Madrasah',
+                status_verifikasi: d.statusVerifikasi || 'Lengkap',
+                keterangan: d.keterangan || '',
+                file_doc: d.fileDoc || null,
+                created_at: d.createdAt || new Date().toISOString(),
+                updated_at: d.updatedAt || new Date().toISOString(),
+                created_by: d.createdBy || 'Administrator',
+              }))
+            );
+          }
+
+          try {
+            localStorage.setItem('sipas_pkkm_supabase_synced', 'true');
+          } catch {
+            // ignore
+          }
+
           const nowMs = Date.now();
-          const pendingLocalPkkm = this.getPkkmDokumen().filter(
+          const pendingLocalPkkm = localPkkm.filter(
             (localItem) =>
               !mappedPkkm.some((m) => m.id === localItem.id) &&
-              nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+              (unsyncedPreExisting.some((u) => u.id === localItem.id) ||
+                nowMs - new Date(localItem.createdAt || 0).getTime() < 15000)
           );
           const mergedPkkm = [...pendingLocalPkkm, ...mappedPkkm];
           this.set(STORAGE_KEYS.PKKM_DOKUMEN, mergedPkkm);
+          countPkkm = mergedPkkm.length;
+        } else {
+          countPkkm = this.getPkkmDokumen().length;
         }
       } catch (pkkmErr) {
         console.info('Sync pkkm_dokumen notice:', pkkmErr);
+        countPkkm = this.getPkkmDokumen().length;
       }
 
       // 6. Fetch activity_logs
@@ -1723,12 +1956,13 @@ class StorageService {
           suratKeluar: countSKel,
           suratKeputusan: countSK,
           arsip: countArsip,
+          pkkm: countPkkm,
         },
       };
     } catch (e: any) {
       return {
         success: false,
-        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0 },
+        counts: { suratMasuk: 0, suratKeluar: 0, suratKeputusan: 0, arsip: 0, pkkm: 0 },
         message: e?.message || 'Gagal sinkronisasi data dari Supabase',
       };
     }
