@@ -21,7 +21,7 @@ import {
 export interface EditBerkasModalProps {
   isOpen: boolean;
   onClose: () => void;
-  tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip';
+  tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip' | 'pkkm';
   itemTitle: string;
   itemSubtitle?: string;
   currentFile?: DocumentFile | null;
@@ -66,6 +66,7 @@ export default function EditBerkasModal({
         return 'Surat Keluar';
       case 'surat-keputusan':
         return 'Surat Keputusan';
+      case 'pkkm':
       case 'arsip':
       default:
         return 'Arsip Digital';

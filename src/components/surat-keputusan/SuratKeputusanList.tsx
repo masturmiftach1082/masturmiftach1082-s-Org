@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { SuratKeputusan, MadrasahSettings, UserProfile } from '../../types';
-import { formatDateIndo, exportToCSV } from '../../utils/formatters';
+import { formatDateIndo, formatDateTimeIndo, exportToCSV, exportToExcel } from '../../utils/formatters';
+import ExportMenuButton from '../common/ExportMenuButton';
 import {
   Plus,
   Search,
-  Download,
   Printer,
   Eye,
   Edit,
@@ -63,7 +63,7 @@ export default function SuratKeputusanList({
     });
   }, [skList, searchTerm, selectedYear, selectedStatus]);
 
-  const handleExportCSV = () => {
+  const getExportData = () => {
     const headers = [
       'Nomor Urut',
       'Nomor SK',
@@ -74,11 +74,11 @@ export default function SuratKeputusanList({
       'Tentang / Pokok Ketetapan',
       'Penandatangan',
       'Status',
-      'File Google Drive ID',
+      'Tautan Google Drive',
     ];
 
     const rows = filteredList.map((sk) => [
-      sk.nomorUrut,
+      String(sk.nomorUrut).padStart(3, '0'),
       sk.nomorSK,
       sk.tahun,
       sk.tanggalSK,
@@ -87,10 +87,29 @@ export default function SuratKeputusanList({
       sk.tentang,
       sk.penandatangan,
       sk.status,
-      sk.fileDoc ? sk.fileDoc.fileId : '-',
+      sk.fileDoc ? sk.fileDoc.driveUrl || sk.fileDoc.fileId : '-',
     ]);
 
-    exportToCSV(`Daftar_Surat_Keputusan_${settings.namaMadrasah.replace(/\s+/g, '_')}`, headers, rows);
+    const baseFilename = `Daftar_Surat_Keputusan_${settings.namaMadrasah.replace(/\s+/g, '_')}`;
+    return { headers, rows, baseFilename };
+  };
+
+  const handleExportCSV = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToCSV(baseFilename, headers, rows);
+  };
+
+  const handleExportExcel = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToExcel({
+      filename: baseFilename,
+      sheetName: 'Surat Keputusan',
+      title: `DAFTAR SURAT KEPUTUSAN (SK) - ${settings.namaMadrasah.toUpperCase()}`,
+      subtitle: `${settings.alamat} · NSM: ${settings.nsm} · NPSN: ${settings.npsn}`,
+      metaLines: [`Diekspor pada: ${formatDateTimeIndo(new Date().toISOString())}`],
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -108,17 +127,16 @@ export default function SuratKeputusanList({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" /> Ekspor CSV
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportMenuButton
+            onExportExcel={handleExportExcel}
+            onExportCSV={handleExportCSV}
+            recordCount={filteredList.length}
+          />
           {canManage && (
             <button
               onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Tetapkan SK Baru
             </button>

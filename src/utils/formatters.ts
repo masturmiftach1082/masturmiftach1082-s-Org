@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 export function formatDateIndo(dateStr: string | undefined): string {
   if (!dateStr) return '-';
   try {
@@ -57,4 +59,86 @@ export function exportToCSV(filename: string, headers: string[], rows: (string |
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export interface ExcelExportOptions {
+  filename: string;
+  sheetName: string;
+  title?: string;
+  subtitle?: string;
+  metaLines?: string[];
+  headers: string[];
+  rows: (string | number)[][];
+}
+
+export function exportToExcel({
+  filename,
+  sheetName,
+  title,
+  subtitle,
+  metaLines = [],
+  headers,
+  rows,
+}: ExcelExportOptions): void {
+  const aoa: (string | number)[][] = [];
+  const merges: XLSX.Range[] = [];
+  const colCount = Math.max(1, headers.length);
+
+  if (title) {
+    aoa.push([title]);
+    if (colCount > 1) {
+      merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: colCount - 1 } });
+    }
+  }
+  if (subtitle) {
+    aoa.push([subtitle]);
+    if (colCount > 1) {
+      merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: colCount - 1 } });
+    }
+  }
+  for (const line of metaLines) {
+    if (line.trim()) {
+      aoa.push([line]);
+      if (colCount > 1) {
+        merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: colCount - 1 } });
+      }
+    }
+  }
+  if (aoa.length > 0) {
+    aoa.push([]);
+  }
+
+  const headerRowIndex = aoa.length;
+  aoa.push(headers);
+
+  rows.forEach((row) => {
+    aoa.push(
+      row.map((cell) => {
+        if (cell === undefined || cell === null) return '';
+        return cell;
+      })
+    );
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+  if (merges.length > 0) {
+    worksheet['!merges'] = merges;
+  }
+
+  // Auto-fit column widths using header + data rows (ignoring merged banner rows)
+  worksheet['!cols'] = headers.map((header, colIdx) => {
+    let maxLen = header.length;
+    for (let r = headerRowIndex + 1; r < aoa.length; r++) {
+      const val = aoa[r]?.[colIdx];
+      const len = val !== undefined && val !== null ? String(val).length : 0;
+      if (len > maxLen) maxLen = len;
+    }
+    return { wch: Math.min(48, Math.max(11, maxLen + 3)) };
+  });
+
+  const safeSheetName = sheetName.replace(/[\\/?*[\]:]/g, '').slice(0, 31) || 'Data';
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
+  XLSX.writeFile(workbook, `${filename}.xlsx`);
 }

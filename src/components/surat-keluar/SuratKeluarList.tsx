@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { SuratKeluar, MadrasahSettings, UserProfile } from '../../types';
-import { formatDateIndo, exportToCSV } from '../../utils/formatters';
+import { formatDateIndo, formatDateTimeIndo, exportToCSV, exportToExcel } from '../../utils/formatters';
+import ExportMenuButton from '../common/ExportMenuButton';
 import {
   Plus,
   Search,
-  Download,
   Printer,
   Eye,
   Edit,
@@ -79,9 +79,10 @@ export default function SuratKeluarList({
     });
   }, [suratList, searchTerm, selectedYear, selectedStatus, selectedKlasifikasi]);
 
-  const handleExportCSV = () => {
+  const getExportData = () => {
     const headers = [
       'No. Urut',
+      'Tahun',
       'Nomor Surat Lengkap',
       'Tanggal Surat',
       'Tujuan Surat',
@@ -89,16 +90,20 @@ export default function SuratKeluarList({
       'Jabatan Penerima',
       'Alamat Penerima',
       'Perihal',
+      'Ringkasan',
       'Kode Klasifikasi',
       'Kategori',
       'Sifat',
       'Status',
       'Catatan Ekspedisi',
-      'File Google Drive ID',
+      'Nama Berkas',
+      'Tautan Google Drive',
+      'Dicatat Oleh',
     ];
 
     const rows = filteredList.map((s) => [
       String(s.nomorUrut).padStart(3, '0'),
+      s.tahunSurat,
       s.nomorSuratLengkap,
       s.tanggalSurat,
       s.tujuanSurat,
@@ -106,15 +111,50 @@ export default function SuratKeluarList({
       s.jabatanPenerima || '-',
       s.alamatPenerima || '-',
       s.perihal,
+      s.ringkasan || '-',
       s.kodeKlasifikasi,
       s.kategori,
       s.sifat,
       s.status,
       s.catatan || '-',
-      s.fileDoc ? s.fileDoc.fileId : '-',
+      s.fileDoc ? s.fileDoc.fileName : '-',
+      s.fileDoc ? s.fileDoc.driveUrl || s.fileDoc.fileId : '-',
+      s.createdBy || '-',
     ]);
 
-    exportToCSV(`Buku_Agenda_Surat_Keluar_${settings.namaMadrasah.replace(/\s+/g, '_')}_${selectedYear}`, headers, rows);
+    const filterSummary = [
+      `Tahun: ${selectedYear === 'ALL' ? 'Semua' : selectedYear}`,
+      `Klasifikasi: ${selectedKlasifikasi === 'ALL' ? 'Semua' : selectedKlasifikasi}`,
+      `Status: ${selectedStatus === 'ALL' ? 'Semua' : selectedStatus}`,
+      searchTerm.trim() ? `Pencarian: "${searchTerm.trim()}"` : '',
+      `Total Tampil: ${filteredList.length} surat`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const baseFilename = `Buku_Agenda_Surat_Keluar_${settings.namaMadrasah.replace(/\s+/g, '_')}_${selectedYear}`;
+    return { headers, rows, filterSummary, baseFilename };
+  };
+
+  const handleExportCSV = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToCSV(baseFilename, headers, rows);
+  };
+
+  const handleExportExcel = () => {
+    const { baseFilename, headers, rows, filterSummary } = getExportData();
+    exportToExcel({
+      filename: baseFilename,
+      sheetName: 'Surat Keluar',
+      title: `BUKU AGENDA SURAT KELUAR - ${settings.namaMadrasah.toUpperCase()}`,
+      subtitle: `${settings.alamat} · NSM: ${settings.nsm} · NPSN: ${settings.npsn}`,
+      metaLines: [
+        `Filter Tampilan: ${filterSummary}`,
+        `Diekspor pada: ${formatDateTimeIndo(new Date().toISOString())}`,
+      ],
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -132,23 +172,22 @@ export default function SuratKeluarList({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onPrintAgendaBook}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" /> Cetak Agenda
           </button>
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" /> Ekspor CSV
-          </button>
+          <ExportMenuButton
+            onExportExcel={handleExportExcel}
+            onExportCSV={handleExportCSV}
+            recordCount={filteredList.length}
+          />
           {canManage && (
             <button
               onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Terbitkan Surat Keluar
             </button>

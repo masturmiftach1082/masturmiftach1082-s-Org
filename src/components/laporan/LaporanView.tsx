@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SuratMasuk, SuratKeluar, SuratKeputusan, MadrasahSettings } from '../../types';
-import { formatDateIndo, exportToCSV } from '../../utils/formatters';
+import { formatDateIndo, formatDateTimeIndo, exportToCSV, exportToExcel } from '../../utils/formatters';
 import MadrasahKop from '../common/MadrasahKop';
+import ExportMenuButton from '../common/ExportMenuButton';
 import {
   Printer,
-  Download,
   BookOpen,
   Send,
   Award,
@@ -88,32 +88,59 @@ export default function LaporanView({
     window.print();
   };
 
-  const handleExport = () => {
+  const getReportExportData = () => {
+    const periodSummary = [
+      `Tahun: ${selectedYear === 'ALL' ? 'Semua Tahun' : selectedYear}`,
+      startDate ? `Dari: ${formatDateIndo(startDate)}` : '',
+      endDate ? `Sampai: ${formatDateIndo(endDate)}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
     if (selectedType === 'agenda_masuk') {
       const headers = [
         'No. Agenda',
+        'Tahun',
         'Tanggal Diterima',
         'Tanggal Surat',
         'Nomor Surat Asal',
         'Pengirim',
         'Perihal',
+        'Ringkasan',
         'Sifat',
+        'Status',
         'Disposisi Kepada',
         'Instruksi Kepala',
+        'Catatan Disposisi',
+        'Tautan Google Drive',
       ];
       const rows = filteredMasuk.map((s) => [
         s.nomorAgenda,
+        s.tahunAgenda,
         s.tanggalDiterima,
         s.tanggalSurat,
         s.nomorSuratPengirim,
         s.pengirim,
         s.perihal,
+        s.ringkasan || '-',
         s.sifat,
-        s.disposisi ? s.disposisi.tujuanDisposisi.join(', ') : '-',
-        s.disposisi ? s.disposisi.catatanKepala : '-',
+        s.status,
+        s.disposisi ? s.disposisi.tujuanDisposisi.join('; ') : '-',
+        s.disposisi ? s.disposisi.instruksi.join('; ') : '-',
+        s.disposisi ? s.disposisi.catatanKepala || '-' : '-',
+        s.fileDoc ? s.fileDoc.driveUrl || s.fileDoc.fileId : '-',
       ]);
-      exportToCSV(`Buku_Agenda_Surat_Masuk_${selectedYear}`, headers, rows);
-    } else if (selectedType === 'agenda_keluar') {
+      return {
+        filename: `Buku_Agenda_Surat_Masuk_${selectedYear}`,
+        sheetName: 'Agenda Surat Masuk',
+        title: `BUKU AGENDA SURAT MASUK - ${settings.namaMadrasah.toUpperCase()}`,
+        headers,
+        rows,
+        periodSummary: `${periodSummary} · Total: ${rows.length} berkas`,
+      };
+    }
+
+    if (selectedType === 'agenda_keluar') {
       const headers = [
         'No. Urut',
         'Nomor Surat Lengkap',
@@ -121,8 +148,12 @@ export default function LaporanView({
         'Tujuan Surat',
         'Nama Penerima',
         'Perihal',
+        'Ringkasan',
         'Klasifikasi',
+        'Sifat',
         'Status',
+        'Dicatat Oleh',
+        'Tautan Google Drive',
       ];
       const rows = filteredKeluar.map((s) => [
         String(s.nomorUrut).padStart(3, '0'),
@@ -131,22 +162,122 @@ export default function LaporanView({
         s.tujuanSurat,
         s.namaPenerima || '-',
         s.perihal,
+        s.ringkasan || '-',
         s.kodeKlasifikasi,
+        s.sifat,
         s.status,
+        s.createdBy || '-',
+        s.fileDoc ? s.fileDoc.driveUrl || s.fileDoc.fileId : '-',
       ]);
-      exportToCSV(`Buku_Agenda_Surat_Keluar_${selectedYear}`, headers, rows);
-    } else if (selectedType === 'daftar_sk') {
-      const headers = ['No. Urut', 'Nomor SK', 'Tanggal SK', 'Tahun Pelajaran', 'Judul SK', 'Status'];
+      return {
+        filename: `Buku_Agenda_Surat_Keluar_${selectedYear}`,
+        sheetName: 'Agenda Surat Keluar',
+        title: `BUKU AGENDA SURAT KELUAR - ${settings.namaMadrasah.toUpperCase()}`,
+        headers,
+        rows,
+        periodSummary: `${periodSummary} · Total: ${rows.length} surat`,
+      };
+    }
+
+    if (selectedType === 'daftar_sk') {
+      const headers = [
+        'No. Urut',
+        'Nomor SK',
+        'Tanggal SK',
+        'Tahun Pelajaran',
+        'Judul SK',
+        'Pokok Penetapan',
+        'Penandatangan',
+        'Status',
+        'Tautan Google Drive',
+      ];
       const rows = filteredSK.map((sk) => [
         String(sk.nomorUrut).padStart(3, '0'),
         sk.nomorSK,
         sk.tanggalSK,
         sk.tahunPelajaran,
         sk.judul,
+        sk.tentang,
+        sk.penandatangan,
         sk.status,
+        sk.fileDoc ? sk.fileDoc.driveUrl || sk.fileDoc.fileId : '-',
       ]);
-      exportToCSV(`Daftar_SK_Madrasah_${selectedYear}`, headers, rows);
+      return {
+        filename: `Daftar_SK_Madrasah_${selectedYear}`,
+        sheetName: 'Daftar SK',
+        title: `BUKU DAFTAR SURAT KEPUTUSAN (SK) - ${settings.namaMadrasah.toUpperCase()}`,
+        headers,
+        rows,
+        periodSummary: `${periodSummary} · Total: ${rows.length} SK`,
+      };
     }
+
+    // rekap_tahunan
+    const headers = ['Kategori Administrasi', 'Sesuai Filter Periode', 'Total Keseluruhan', 'Keterangan'];
+    const rows: (string | number)[][] = [
+      [
+        'Surat Masuk',
+        filteredMasuk.length,
+        suratMasukList.length,
+        'Berkas surat dinas diterima',
+      ],
+      [
+        'Surat Masuk Terdisposisi',
+        filteredMasuk.filter((s) => Boolean(s.disposisi)).length,
+        suratMasukList.filter((s) => Boolean(s.disposisi)).length,
+        'Sudah mendapat lembar disposisi pimpinan',
+      ],
+      [
+        'Surat Keluar',
+        filteredKeluar.length,
+        suratKeluarList.length,
+        'Surat resmi diterbitkan madrasah',
+      ],
+      [
+        'Surat Keputusan (SK)',
+        filteredSK.length,
+        skList.length,
+        'SK penetapan Kepala Madrasah',
+      ],
+    ];
+    return {
+      filename: `Rekapitulasi_Administrasi_${selectedYear}`,
+      sheetName: 'Rekapitulasi',
+      title: `REKAPITULASI ADMINISTRASI PERSURATAN - ${settings.namaMadrasah.toUpperCase()}`,
+      headers,
+      rows,
+      periodSummary,
+    };
+  };
+
+  const currentRecordCount =
+    selectedType === 'agenda_masuk'
+      ? filteredMasuk.length
+      : selectedType === 'agenda_keluar'
+      ? filteredKeluar.length
+      : selectedType === 'daftar_sk'
+      ? filteredSK.length
+      : 4;
+
+  const handleExportCSV = () => {
+    const { filename, headers, rows } = getReportExportData();
+    exportToCSV(filename, headers, rows);
+  };
+
+  const handleExportExcel = () => {
+    const { filename, sheetName, title, headers, rows, periodSummary } = getReportExportData();
+    exportToExcel({
+      filename,
+      sheetName,
+      title,
+      subtitle: `${settings.alamat} · NSM: ${settings.nsm} · NPSN: ${settings.npsn}`,
+      metaLines: [
+        `Periode Laporan: ${periodSummary}`,
+        `Diekspor pada: ${formatDateTimeIndo(new Date().toISOString())}`,
+      ],
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -198,12 +329,11 @@ export default function LaporanView({
               </button>
             </div>
 
-            <button
-              onClick={handleExport}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-600" /> Ekspor ke Excel / CSV
-            </button>
+            <ExportMenuButton
+              onExportExcel={handleExportExcel}
+              onExportCSV={handleExportCSV}
+              recordCount={currentRecordCount}
+            />
             <button
               onClick={handlePrint}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 border border-amber-400/80 rounded-lg shadow-md transition-all active:scale-95 cursor-pointer"

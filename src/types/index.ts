@@ -207,12 +207,46 @@ export interface MadrasahSettings {
   izinkanNomorManual?: boolean; // Mengizinkan penomoran manual pada surat keluar, SK, dan agenda
 }
 
+export type PkkmKomponenId =
+  | 'manajerial'
+  | 'kewirausahaan'
+  | 'supervisi'
+  | 'kepemimpinan';
+
+export type PkkmStatusVerifikasi = 'Lengkap' | 'Proses' | 'Revisi';
+
+export interface PkkmDokumen {
+  id: string;
+  komponenId: PkkmKomponenId;
+  subMenuId: string; // 'a', 'b', 'c', ...
+  subItemId?: string; // '1', '2', '3' (khusus komponen kepemimpinan pembelajaran)
+  kodeDokumen: string;
+  judulDokumen: string;
+  tahunAjaran: string;
+  tahun: number;
+  tanggalDokumen: string;
+  penanggungJawab: string;
+  statusVerifikasi: PkkmStatusVerifikasi;
+  keterangan: string;
+  fileDoc?: GoogleDriveMetadata;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
 export interface ActivityLog {
   id: string;
   userId: string;
   userName: string;
   action: string;
-  entityType: 'Surat Masuk' | 'Surat Keluar' | 'Surat Keputusan' | 'Arsip Digital' | 'Pengaturan' | 'Auth';
+  entityType:
+    | 'Surat Masuk'
+    | 'Surat Keluar'
+    | 'Surat Keputusan'
+    | 'Arsip Digital'
+    | 'PKKM'
+    | 'Pengaturan'
+    | 'Auth';
   entityId?: string;
   details: string;
   timestamp: string;

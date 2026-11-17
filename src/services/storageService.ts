@@ -3,6 +3,7 @@ import {
   SuratKeluar,
   SuratKeputusan,
   ArsipDigital,
+  PkkmDokumen,
   MadrasahSettings,
   KlasifikasiSurat,
   UserProfile,
@@ -33,6 +34,7 @@ const STORAGE_KEYS = {
   SURAT_KELUAR: 'sipas_surat_keluar',
   SURAT_KEPUTUSAN: 'sipas_surat_keputusan',
   ARSIP: 'sipas_arsip',
+  PKKM_DOKUMEN: 'sipas_pkkm_dokumen',
   ACTIVITY_LOGS: 'sipas_activity_logs',
   COUNTER_MASUK: 'sipas_counter_masuk_',
   COUNTER_KELUAR: 'sipas_counter_keluar_',
@@ -1085,8 +1087,169 @@ class StorageService {
     return updated;
   }
 
+  // --- CRUD: PKKM DOKUMEN ---
+  getPkkmDokumen(): PkkmDokumen[] {
+    return this.get<PkkmDokumen[]>(STORAGE_KEYS.PKKM_DOKUMEN, []);
+  }
+
+  addPkkmDokumen(
+    item: Omit<PkkmDokumen, 'id' | 'createdAt' | 'updatedAt' | 'kodeDokumen'> & {
+      kodeDokumen?: string;
+    },
+    user: UserProfile
+  ): PkkmDokumen {
+    const all = this.getPkkmDokumen();
+    const existingSameGroup = all.filter(
+      (d) =>
+        d.komponenId === item.komponenId &&
+        d.subMenuId === item.subMenuId &&
+        (d.subItemId || '') === (item.subItemId || '')
+    );
+    const seq = String(existingSameGroup.length + 1).padStart(3, '0');
+    const compNo =
+      item.komponenId === 'manajerial'
+        ? '1'
+        : item.komponenId === 'kewirausahaan'
+        ? '2'
+        : item.komponenId === 'supervisi'
+        ? '3'
+        : '4';
+    const generatedCode = item.subItemId
+      ? `PKKM-${compNo}.${item.subMenuId}.${item.subItemId}-${seq}`
+      : `PKKM-${compNo}.${item.subMenuId}-${seq}`;
+
+    const now = new Date().toISOString();
+    const newItem: PkkmDokumen = {
+      ...item,
+      kodeDokumen: item.kodeDokumen?.trim() || generatedCode,
+      fileDoc: sanitizeFileDocForPersistence(item.fileDoc),
+      id: `pkkm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: user.name,
+    };
+
+    all.unshift(newItem);
+    this.set(STORAGE_KEYS.PKKM_DOKUMEN, all);
+
+    this.logActivity(
+      user,
+      'Tambah Dokumen PKKM',
+      'PKKM',
+      newItem.id,
+      `${newItem.kodeDokumen}: "${newItem.judulDokumen}"`
+    );
+
+    if (supabase) {
+      supabase
+        .from('pkkm_dokumen')
+        .insert({
+          id: newItem.id,
+          komponen_id: newItem.komponenId,
+          sub_menu_id: newItem.subMenuId,
+          sub_item_id: newItem.subItemId || null,
+          kode_dokumen: newItem.kodeDokumen,
+          judul_dokumen: newItem.judulDokumen,
+          tahun_ajaran: newItem.tahunAjaran,
+          tahun: newItem.tahun,
+          tanggal_dokumen: newItem.tanggalDokumen,
+          penanggung_jawab: newItem.penanggungJawab,
+          status_verifikasi: newItem.statusVerifikasi,
+          keterangan: newItem.keterangan || '',
+          file_doc: newItem.fileDoc || null,
+          created_at: newItem.createdAt,
+          updated_at: newItem.updatedAt,
+          created_by: newItem.createdBy,
+        })
+        .then(({ error }) => {
+          if (error) console.info('Supabase PKKM insert notice:', error.message);
+        });
+    }
+
+    return newItem;
+  }
+
+  updatePkkmDokumen(id: string, updates: Partial<PkkmDokumen>, user: UserProfile): PkkmDokumen {
+    const all = this.getPkkmDokumen();
+    const idx = all.findIndex((d) => d.id === id);
+    if (idx === -1) throw new Error('Dokumen PKKM tidak ditemukan');
+
+    const existing = all[idx];
+    const updated: PkkmDokumen = {
+      ...existing,
+      ...updates,
+      fileDoc: updates.fileDoc !== undefined ? sanitizeFileDocForPersistence(updates.fileDoc) : existing.fileDoc,
+      id: existing.id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    all[idx] = updated;
+    this.set(STORAGE_KEYS.PKKM_DOKUMEN, all);
+
+    this.logActivity(
+      user,
+      'Pembaruan Dokumen PKKM',
+      'PKKM',
+      updated.id,
+      `Memperbarui ${updated.kodeDokumen}: "${updated.judulDokumen}"`
+    );
+
+    if (supabase) {
+      supabase
+        .from('pkkm_dokumen')
+        .update({
+          komponen_id: updated.komponenId,
+          sub_menu_id: updated.subMenuId,
+          sub_item_id: updated.subItemId || null,
+          kode_dokumen: updated.kodeDokumen,
+          judul_dokumen: updated.judulDokumen,
+          tahun_ajaran: updated.tahunAjaran,
+          tahun: updated.tahun,
+          tanggal_dokumen: updated.tanggalDokumen,
+          penanggung_jawab: updated.penanggungJawab,
+          status_verifikasi: updated.statusVerifikasi,
+          keterangan: updated.keterangan || '',
+          file_doc: updated.fileDoc || null,
+          updated_at: updated.updatedAt,
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.info('Supabase PKKM update notice:', error.message);
+        });
+    }
+
+    return updated;
+  }
+
+  deletePkkmDokumen(id: string, user: UserProfile): void {
+    const all = this.getPkkmDokumen();
+    const existing = all.find((d) => d.id === id);
+    if (!existing) return;
+
+    const filtered = all.filter((d) => d.id !== id);
+    this.set(STORAGE_KEYS.PKKM_DOKUMEN, filtered);
+
+    this.logActivity(
+      user,
+      'Penghapusan Dokumen PKKM',
+      'PKKM',
+      id,
+      `Menghapus bukti fisik PKKM ${existing.kodeDokumen} (${existing.judulDokumen})`
+    );
+
+    if (supabase) {
+      supabase
+        .from('pkkm_dokumen')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.info('Supabase PKKM delete notice:', error.message);
+        });
+    }
+  }
+
   updateLampiranBerkas(
-    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip',
+    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip' | 'pkkm',
     id: string,
     fileDoc: DocumentFile | undefined,
     user: UserProfile
@@ -1191,6 +1354,29 @@ class StorageService {
           supabase.from('arsip_digital').update({ file_doc: all[idx].fileDoc, updated_at: now }).eq('id', id).then();
         }
       }
+    } else if (tipe === 'pkkm') {
+      const all = this.getPkkmDokumen();
+      const idx = all.findIndex((d) => d.id === id);
+      if (idx !== -1) {
+        all[idx] = {
+          ...all[idx],
+          fileDoc,
+          updatedAt: now,
+        };
+        this.set(STORAGE_KEYS.PKKM_DOKUMEN, all);
+        this.logActivity(
+          user,
+          'Koreksi Berkas Lampiran',
+          'PKKM',
+          id,
+          fileDoc
+            ? `Memperbarui berkas dokumen PKKM ${all[idx].kodeDokumen}: "${fileDoc.fileName}"`
+            : `Melepas berkas lampiran dari PKKM ${all[idx].kodeDokumen}`
+        );
+        if (supabase) {
+          supabase.from('pkkm_dokumen').update({ file_doc: fileDoc || null, updated_at: now }).eq('id', id).then();
+        }
+      }
     }
   }
 
@@ -1208,6 +1394,7 @@ class StorageService {
       suratKeluar: this.getSuratKeluar(),
       suratKeputusan: this.getSuratKeputusan(),
       arsip: this.getArsipDigital(),
+      pkkmDokumen: this.getPkkmDokumen(),
       activityLogs: this.getActivityLogs(),
     };
     return JSON.stringify(data, null, 2);
@@ -1223,6 +1410,7 @@ class StorageService {
       if (data.suratKeluar) this.set(STORAGE_KEYS.SURAT_KELUAR, data.suratKeluar);
       if (data.suratKeputusan) this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, data.suratKeputusan);
       if (data.arsip) this.set(STORAGE_KEYS.ARSIP, data.arsip);
+      if (data.pkkmDokumen) this.set(STORAGE_KEYS.PKKM_DOKUMEN, data.pkkmDokumen);
       if (data.activityLogs) this.set(STORAGE_KEYS.ACTIVITY_LOGS, data.activityLogs);
 
       this.logActivity(user, 'Restore Basis Data', 'Pengaturan', undefined, 'Memulihkan basis data SIPAS dari berkas JSON.');
@@ -1464,7 +1652,46 @@ class StorageService {
         countArsip = mergedArsip.length;
       }
 
-      // 5. Fetch activity_logs
+      // 5. Fetch pkkm_dokumen (if table exists in Supabase)
+      try {
+        const { data: remotePkkm, error: pkkmErr } = await supabase
+          .from('pkkm_dokumen')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!pkkmErr && Array.isArray(remotePkkm)) {
+          const mappedPkkm: PkkmDokumen[] = remotePkkm.map((r: any) => ({
+            id: r.id,
+            komponenId: r.komponen_id,
+            subMenuId: r.sub_menu_id,
+            subItemId: r.sub_item_id || undefined,
+            kodeDokumen: r.kode_dokumen || r.id,
+            judulDokumen: r.judul_dokumen || '',
+            tahunAjaran: r.tahun_ajaran || '2025/2026',
+            tahun: r.tahun || new Date().getFullYear(),
+            tanggalDokumen: r.tanggal_dokumen || '',
+            penanggungJawab: r.penanggung_jawab || 'Kepala Madrasah',
+            statusVerifikasi: r.status_verifikasi || 'Lengkap',
+            keterangan: r.keterangan || '',
+            fileDoc: sanitizeFileDocForPersistence(r.file_doc),
+            createdAt: r.created_at,
+            updatedAt: r.updated_at || r.created_at,
+            createdBy: r.created_by || 'Administrator',
+          }));
+          const nowMs = Date.now();
+          const pendingLocalPkkm = this.getPkkmDokumen().filter(
+            (localItem) =>
+              !mappedPkkm.some((m) => m.id === localItem.id) &&
+              nowMs - new Date(localItem.createdAt || 0).getTime() < 15000
+          );
+          const mergedPkkm = [...pendingLocalPkkm, ...mappedPkkm];
+          this.set(STORAGE_KEYS.PKKM_DOKUMEN, mergedPkkm);
+        }
+      } catch (pkkmErr) {
+        console.info('Sync pkkm_dokumen notice:', pkkmErr);
+      }
+
+      // 6. Fetch activity_logs
       try {
         const { data: remoteLogs } = await supabase
           .from('activity_logs')
@@ -1553,6 +1780,7 @@ class StorageService {
     this.set(STORAGE_KEYS.SURAT_KELUAR, initialSuratKeluar);
     this.set(STORAGE_KEYS.SURAT_KEPUTUSAN, initialSuratKeputusan);
     this.set(STORAGE_KEYS.ARSIP, initialArsipDigital);
+    this.set(STORAGE_KEYS.PKKM_DOKUMEN, []);
     this.set(STORAGE_KEYS.ACTIVITY_LOGS, initialActivityLogs);
     this.set(STORAGE_KEYS.ACTIVE_USER, initialUsers[0]);
 

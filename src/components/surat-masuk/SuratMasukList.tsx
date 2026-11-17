@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { SuratMasuk, MadrasahSettings, UserProfile } from '../../types';
-import { formatDateIndo, exportToCSV } from '../../utils/formatters';
+import { formatDateIndo, formatDateTimeIndo, exportToCSV, exportToExcel } from '../../utils/formatters';
+import ExportMenuButton from '../common/ExportMenuButton';
 import {
   Plus,
   Search,
-  Download,
   Printer,
   FileSignature,
   Eye,
@@ -82,7 +82,7 @@ export default function SuratMasukList({
     });
   }, [suratList, searchTerm, selectedYear, selectedKategori, selectedStatus, selectedSifat]);
 
-  const handleExportCSV = () => {
+  const getExportData = () => {
     const headers = [
       'No. Agenda',
       'Tahun',
@@ -91,13 +91,17 @@ export default function SuratMasukList({
       'Tanggal Diterima',
       'Pengirim',
       'Perihal',
+      'Ringkasan',
       'Kategori',
       'Sifat',
       'Tujuan Internal',
       'Status',
       'Disposisi Kepada',
       'Instruksi Kepala',
-      'File Google Drive ID',
+      'Catatan Disposisi',
+      'Nama Berkas',
+      'Tautan Google Drive',
+      'Dicatat Oleh',
     ];
 
     const rows = filteredList.map((s) => [
@@ -108,16 +112,52 @@ export default function SuratMasukList({
       s.tanggalDiterima,
       s.pengirim,
       s.perihal,
+      s.ringkasan || '-',
       s.kategori,
       s.sifat,
-      s.tujuanInternal,
+      s.tujuanInternal || '-',
       s.status,
       s.disposisi ? s.disposisi.tujuanDisposisi.join('; ') : '-',
-      s.disposisi ? s.disposisi.catatanKepala : '-',
-      s.fileDoc ? s.fileDoc.fileId : '-',
+      s.disposisi ? s.disposisi.instruksi.join('; ') : '-',
+      s.disposisi ? s.disposisi.catatanKepala || '-' : '-',
+      s.fileDoc ? s.fileDoc.fileName : '-',
+      s.fileDoc ? s.fileDoc.driveUrl || s.fileDoc.fileId : '-',
+      s.createdBy || '-',
     ]);
 
-    exportToCSV(`Buku_Agenda_Surat_Masuk_${settings.namaMadrasah.replace(/\s+/g, '_')}_${selectedYear}`, headers, rows);
+    const filterSummary = [
+      `Tahun: ${selectedYear === 'ALL' ? 'Semua' : selectedYear}`,
+      `Status: ${selectedStatus === 'ALL' ? 'Semua' : selectedStatus}`,
+      `Sifat: ${selectedSifat === 'ALL' ? 'Semua' : selectedSifat}`,
+      searchTerm.trim() ? `Pencarian: "${searchTerm.trim()}"` : '',
+      `Total Tampil: ${filteredList.length} surat`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const baseFilename = `Buku_Agenda_Surat_Masuk_${settings.namaMadrasah.replace(/\s+/g, '_')}_${selectedYear}`;
+    return { headers, rows, filterSummary, baseFilename };
+  };
+
+  const handleExportCSV = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToCSV(baseFilename, headers, rows);
+  };
+
+  const handleExportExcel = () => {
+    const { baseFilename, headers, rows, filterSummary } = getExportData();
+    exportToExcel({
+      filename: baseFilename,
+      sheetName: 'Surat Masuk',
+      title: `BUKU AGENDA SURAT MASUK - ${settings.namaMadrasah.toUpperCase()}`,
+      subtitle: `${settings.alamat} · NSM: ${settings.nsm} · NPSN: ${settings.npsn}`,
+      metaLines: [
+        `Filter Tampilan: ${filterSummary}`,
+        `Diekspor pada: ${formatDateTimeIndo(new Date().toISOString())}`,
+      ],
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -135,19 +175,18 @@ export default function SuratMasukList({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onPrintAgendaBook}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" /> Cetak Agenda
           </button>
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" /> Ekspor CSV
-          </button>
+          <ExportMenuButton
+            onExportExcel={handleExportExcel}
+            onExportCSV={handleExportCSV}
+            recordCount={filteredList.length}
+          />
           {canManage && (
             <button
               onClick={onAddNew}

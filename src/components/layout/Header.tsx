@@ -68,6 +68,26 @@ export default function Header({
           title: 'Arsip Digital',
           subtitle: `Repositori Arsip Digital ${settings.namaMadrasah}`,
         };
+      case 'pkkm-manajerial':
+        return {
+          title: 'PKKM · Manajerial',
+          subtitle: '1. Komponen Manajerial — Penilaian Kinerja Kepala Madrasah',
+        };
+      case 'pkkm-kewirausahaan':
+        return {
+          title: 'PKKM · Kewirausahaan',
+          subtitle: '2. Komponen Kewirausahaan — Penilaian Kinerja Kepala Madrasah',
+        };
+      case 'pkkm-supervisi':
+        return {
+          title: 'PKKM · Supervisi',
+          subtitle: '3. Komponen Supervisi Akademik & Tendik — PKKM',
+        };
+      case 'pkkm-kepemimpinan':
+        return {
+          title: 'PKKM · Kepemimpinan',
+          subtitle: '4. Komponen Kepemimpinan Pembelajaran / Pendampingan Tupoksi Guru',
+        };
       case 'laporan':
         return {
           title: 'Laporan & Agenda',

@@ -6,10 +6,13 @@ import {
   SuratKeluar,
   SuratKeputusan,
   ArsipDigital,
+  PkkmDokumen,
+  PkkmKomponenId,
   ActivityLog,
   GoogleDriveMetadata,
   DocumentFile,
 } from './types';
+import { getPkkmKomponenByTab } from './data/pkkmStructure';
 import { storageService } from './services/storageService';
 
 // Layout
@@ -25,6 +28,7 @@ import ArsipDigitalList from './components/arsip/ArsipDigitalList';
 import LaporanView from './components/laporan/LaporanView';
 import PenggunaList from './components/pengguna/PenggunaList';
 import PengaturanView from './components/pengaturan/PengaturanView';
+import PkkmView from './components/pkkm/PkkmView';
 
 // Modals
 import SuratMasukModal from './components/surat-masuk/SuratMasukModal';
@@ -35,6 +39,7 @@ import SuratKeluarModal from './components/surat-keluar/SuratKeluarModal';
 import SuratKeluarDetailModal from './components/surat-keluar/SuratKeluarDetailModal';
 import SuratKeputusanModal from './components/surat-keputusan/SuratKeputusanModal';
 import ArsipDigitalModal from './components/arsip/ArsipDigitalModal';
+import PkkmDokumenModal from './components/pkkm/PkkmDokumenModal';
 import DocumentViewerModal from './components/common/DocumentViewerModal';
 import LoginAdminModal from './components/auth/LoginAdminModal';
 import EditBerkasModal from './components/common/EditBerkasModal';
@@ -53,6 +58,7 @@ export default function App() {
   const [suratKeluarList, setSuratKeluarList] = useState<SuratKeluar[]>(() => storageService.getSuratKeluar());
   const [skList, setSKList] = useState<SuratKeputusan[]>(() => storageService.getSuratKeputusan());
   const [arsipList, setArsipList] = useState<ArsipDigital[]>(() => storageService.getArsipDigital());
+  const [pkkmList, setPkkmList] = useState<PkkmDokumen[]>(() => storageService.getPkkmDokumen());
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => storageService.getActivityLogs());
 
   // Modal States - Surat Masuk
@@ -71,11 +77,16 @@ export default function App() {
   const [isSuratKeluarDetailOpen, setIsSuratKeluarDetailOpen] = useState(false);
   const [selectedSuratKeluar, setSelectedSuratKeluar] = useState<SuratKeluar | null>(null);
 
-  // Modal States - SK & Arsip
+  // Modal States - SK, Arsip & PKKM
   const [isSKModalOpen, setIsSKModalOpen] = useState(false);
   const [skToEdit, setSKToEdit] = useState<SuratKeputusan | null>(null);
   const [isArsipModalOpen, setIsArsipModalOpen] = useState(false);
   const [arsipToEdit, setArsipToEdit] = useState<ArsipDigital | null>(null);
+  const [isPkkmModalOpen, setIsPkkmModalOpen] = useState(false);
+  const [pkkmToEdit, setPkkmToEdit] = useState<PkkmDokumen | null>(null);
+  const [pkkmDefaultKomponen, setPkkmDefaultKomponen] = useState<PkkmKomponenId>('manajerial');
+  const [pkkmDefaultSubMenu, setPkkmDefaultSubMenu] = useState<string>('a');
+  const [pkkmDefaultSubItem, setPkkmDefaultSubItem] = useState<string | undefined>(undefined);
 
   const [isDocViewerOpen, setIsDocViewerOpen] = useState(false);
   const [docToPreview, setDocToPreview] = useState<GoogleDriveMetadata | undefined>(undefined);
@@ -88,7 +99,7 @@ export default function App() {
   // Edit Berkas Modal State
   const [isEditBerkasOpen, setIsEditBerkasOpen] = useState(false);
   const [targetBerkas, setTargetBerkas] = useState<{
-    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip';
+    tipe: 'surat-masuk' | 'surat-keluar' | 'surat-keputusan' | 'arsip' | 'pkkm';
     id: string;
     itemTitle: string;
     itemSubtitle?: string;
@@ -107,6 +118,7 @@ export default function App() {
     isSuratKeluarModalOpen ||
     isSKModalOpen ||
     isArsipModalOpen ||
+    isPkkmModalOpen ||
     isDisposisiModalOpen ||
     isEditBerkasOpen ||
     isLoginModalOpen;
@@ -132,6 +144,9 @@ export default function App() {
 
     const nextArsip = storageService.getArsipDigital();
     setArsipList((prev) => (JSON.stringify(prev) === JSON.stringify(nextArsip) ? prev : nextArsip));
+
+    const nextPkkm = storageService.getPkkmDokumen();
+    setPkkmList((prev) => (JSON.stringify(prev) === JSON.stringify(nextPkkm) ? prev : nextPkkm));
 
     const nextLogs = storageService.getActivityLogs();
     setActivityLogs((prev) => (JSON.stringify(prev) === JSON.stringify(nextLogs) ? prev : nextLogs));
@@ -317,6 +332,32 @@ export default function App() {
     refreshData();
   };
 
+  // PKKM Handlers
+  const handleOpenAddPkkm = (
+    komponenId: PkkmKomponenId,
+    subMenuId: string,
+    subItemId?: string
+  ) => {
+    setPkkmToEdit(null);
+    setPkkmDefaultKomponen(komponenId);
+    setPkkmDefaultSubMenu(subMenuId);
+    setPkkmDefaultSubItem(subItemId);
+    setIsPkkmModalOpen(true);
+  };
+
+  const handleEditPkkm = (dok: PkkmDokumen) => {
+    setPkkmToEdit(dok);
+    setPkkmDefaultKomponen(dok.komponenId);
+    setPkkmDefaultSubMenu(dok.subMenuId);
+    setPkkmDefaultSubItem(dok.subItemId);
+    setIsPkkmModalOpen(true);
+  };
+
+  const handleDeletePkkm = (id: string) => {
+    storageService.deletePkkmDokumen(id, currentUser);
+    refreshData();
+  };
+
   // Edit / Ganti Berkas Handlers
   const handleOpenEditBerkasSuratMasuk = (surat: SuratMasuk) => {
     setTargetBerkas({
@@ -362,6 +403,17 @@ export default function App() {
     setIsEditBerkasOpen(true);
   };
 
+  const handleOpenEditBerkasPkkm = (dok: PkkmDokumen) => {
+    setTargetBerkas({
+      tipe: 'pkkm',
+      id: dok.id,
+      itemTitle: dok.judulDokumen,
+      itemSubtitle: `Kode: ${dok.kodeDokumen} · TP ${dok.tahunAjaran}`,
+      currentFile: dok.fileDoc,
+    });
+    setIsEditBerkasOpen(true);
+  };
+
   const handleSaveEditBerkas = async (newFile: DocumentFile | undefined) => {
     if (!targetBerkas) return;
     storageService.updateLampiranBerkas(targetBerkas.tipe, targetBerkas.id, newFile, currentUser);
@@ -393,6 +445,13 @@ export default function App() {
     (s) => s.status === 'Baru Diterima' || !s.disposisi
   ).length;
 
+  const pkkmCounts = pkkmList.reduce<Record<string, number>>((acc, item) => {
+    acc[item.komponenId] = (acc[item.komponenId] || 0) + 1;
+    return acc;
+  }, {});
+
+  const activePkkmKomponen = getPkkmKomponenByTab(currentTab);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       {/* Sidebar Component */}
@@ -406,6 +465,7 @@ export default function App() {
         settings={settings}
         currentUser={currentUser}
         pendingMasukCount={pendingMasukCount}
+        pkkmCounts={pkkmCounts}
       />
 
       {/* Main Content Area */}
@@ -530,6 +590,28 @@ export default function App() {
                 });
               }}
               onEditBerkas={handleOpenEditBerkasArsip}
+              onOpenLoginModal={handleOpenLoginModal}
+            />
+          )}
+
+          {activePkkmKomponen && (
+            <PkkmView
+              komponenId={activePkkmKomponen.id}
+              dokumenList={pkkmList}
+              settings={settings}
+              currentUser={currentUser}
+              onAddNew={handleOpenAddPkkm}
+              onEdit={handleEditPkkm}
+              onDelete={handleDeletePkkm}
+              onViewDocument={(dok) => {
+                if (dok.fileDoc) {
+                  handleOpenDocViewer(dok.fileDoc, dok.judulDokumen, dok.kodeDokumen, {
+                    onEditBerkas: () => handleOpenEditBerkasPkkm(dok),
+                    onEditData: () => handleEditPkkm(dok),
+                  });
+                }
+              }}
+              onEditBerkas={handleOpenEditBerkasPkkm}
               onOpenLoginModal={handleOpenLoginModal}
             />
           )}
@@ -677,6 +759,21 @@ export default function App() {
           setArsipToEdit(null);
         }}
         arsipToEdit={arsipToEdit}
+        currentUser={currentUser}
+        onSaved={refreshData}
+      />
+
+      {/* 8b. PKKM Dokumen Add/Edit Modal */}
+      <PkkmDokumenModal
+        isOpen={isPkkmModalOpen}
+        onClose={() => {
+          setIsPkkmModalOpen(false);
+          setPkkmToEdit(null);
+        }}
+        dokumenToEdit={pkkmToEdit}
+        defaultKomponenId={pkkmDefaultKomponen}
+        defaultSubMenuId={pkkmDefaultSubMenu}
+        defaultSubItemId={pkkmDefaultSubItem}
         currentUser={currentUser}
         onSaved={refreshData}
       />

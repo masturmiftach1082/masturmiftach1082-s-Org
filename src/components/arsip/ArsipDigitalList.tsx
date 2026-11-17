@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { ArsipDigital, MadrasahSettings, UserProfile } from '../../types';
-import { formatFileSize, exportToCSV } from '../../utils/formatters';
+import { formatFileSize, formatDateTimeIndo, exportToCSV, exportToExcel } from '../../utils/formatters';
+import ExportMenuButton from '../common/ExportMenuButton';
 import {
   Plus,
   Search,
-  Download,
   Trash2,
   HardDrive,
   Archive,
@@ -62,7 +62,7 @@ export default function ArsipDigitalList({
     });
   }, [arsipList, searchTerm, selectedKategori]);
 
-  const handleExportCSV = () => {
+  const getExportData = () => {
     const headers = [
       'Kode Arsip',
       'Judul Arsip',
@@ -72,7 +72,7 @@ export default function ArsipDigitalList({
       'Ukuran File',
       'Tipe File',
       'Lokasi Fisik Rak',
-      'Google Drive ID',
+      'Tautan Google Drive',
       'Diupload Oleh',
     ];
 
@@ -85,11 +85,30 @@ export default function ArsipDigitalList({
       formatFileSize(a.fileDoc?.fileSize || 0),
       a.fileDoc?.fileType || '-',
       a.lokasiFisik || '-',
-      a.fileDoc?.fileId || '-',
+      a.fileDoc?.driveUrl || a.fileDoc?.fileId || '-',
       a.createdBy || '-',
     ]);
 
-    exportToCSV(`Katalog_Arsip_Digital_${settings.namaMadrasah.replace(/\s+/g, '_')}`, headers, rows);
+    const baseFilename = `Katalog_Arsip_Digital_${settings.namaMadrasah.replace(/\s+/g, '_')}`;
+    return { headers, rows, baseFilename };
+  };
+
+  const handleExportCSV = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToCSV(baseFilename, headers, rows);
+  };
+
+  const handleExportExcel = () => {
+    const { baseFilename, headers, rows } = getExportData();
+    exportToExcel({
+      filename: baseFilename,
+      sheetName: 'Arsip Digital',
+      title: `KATALOG ARSIP DIGITAL - ${settings.namaMadrasah.toUpperCase()}`,
+      subtitle: `${settings.alamat} · NSM: ${settings.nsm} · NPSN: ${settings.npsn}`,
+      metaLines: [`Diekspor pada: ${formatDateTimeIndo(new Date().toISOString())}`],
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -107,13 +126,13 @@ export default function ArsipDigitalList({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" /> Ekspor Katalog
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportMenuButton
+            onExportExcel={handleExportExcel}
+            onExportCSV={handleExportCSV}
+            recordCount={filteredList.length}
+            label="Ekspor Katalog"
+          />
           {canManage && (
             <button
               onClick={onAddNew}
