@@ -31,7 +31,7 @@ export const PKKM_COMPONENTS: PkkmKomponen[] = [
     nomor: 1,
     sidebarLabel: '1. Komponen Manajerial',
     title: 'Komponen Manajerial',
-    subtitle: 'Dokumen perencanaan, kurikulum satuan pendidikan, rapor pendidikan, RKAS/RKAM, dan buku induk madrasah.',
+    subtitle: 'Dokumen perencanaan, kurikulum satuan pendidikan, rapor pendidikan, RKAS/RKAM, buku induk, dan SIM madrasah.',
     subMenus: [
       {
         id: 'a',
@@ -74,6 +74,12 @@ export const PKKM_COMPONENTS: PkkmKomponen[] = [
         kode: 'g.',
         tabLabel: 'g. Buku Induk Madrasah',
         fullTitle: 'Buku Induk Madrasah',
+      },
+      {
+        id: 'h',
+        kode: 'h.',
+        tabLabel: 'h. Sistem Informasi Manajemen (SIM)',
+        fullTitle: 'Kepala Sekolah Mengelola Sistem Informasi Manajemen (SIM)',
       },
     ],
   },
